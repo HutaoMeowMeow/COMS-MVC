@@ -1,0 +1,73 @@
+@model IEnumerable<Notification>
+@{
+    ViewData["Title"] = "All Notifications";
+    ViewData["PageTitle"] = "All Notifications (Admin)";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-bell me-2"></i>All Notifications
+    </h1>
+    <a asp-controller="Notifications" asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>My Notifications
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>User</th>
+                        <th>Title</th>
+                        <th>Message</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Read</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        @foreach (var notification in Model)
+                        {
+                            <tr>
+                                <td class="small">@notification.User?.UserName</td>
+                                <td class="fw-medium">@notification.Title</td>
+                                <td class="small">@notification.Message</td>
+                                <td>
+                                    @{
+                                        var typeClass = notification.Type switch
+                                        {
+                                            "Alert" => "danger",
+                                            "Report" => "warning",
+                                            "Announcement" => "info",
+                                            "Maintenance" => "secondary",
+                                            _ => "primary"
+                                        };
+                                    }
+                                    <span class="badge bg-@typeClass">@notification.Type</span>
+                                </td>
+                                <td class="small text-muted">@notification.CreatedAt.ToString("g")</td>
+                                <td>
+                                    <span class="badge bg-@(notification.IsRead ? "success" : "secondary")">
+                                        @(notification.IsRead ? "Yes" : "No")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="bi bi-bell-slash me-2"></i>No notifications found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

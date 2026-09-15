@@ -1,0 +1,147 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+sidebar {
+  --sidebar-bg: #1e3a5f;
+  --sidebar-hover: #2c5282;
+  --sidebar-active: #3182ce;
+  --sidebar-text: #e2e8f0;
+  --sidebar-text-hover: #ffffff;
+}
+
+.sidebar {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+  width: 260px;
+  min-height: 100vh;
+  padding-top: 0.5rem;
+}
+
+.sidebar-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-nav .nav-link {
+  color: #e2e8f0 !important;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0;
+  border-left: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.sidebar-nav .nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff !important;
+  border-left-color: #3182ce;
+}
+
+.sidebar-nav .nav-link.active,
+.sidebar-nav .nav-link:focus {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff !important;
+  border-left-color: #3182ce;
+  font-weight: 500;
+}
+
+.sidebar-nav .nav-link.btn-link,
+.sidebar-nav .nav-link.btn-link:hover,
+.sidebar-nav .nav-link.btn-link:focus {
+  color: #e2e8f0 !important;
+}
+
+.sidebar-nav .nav-link.btn-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dashboard-wrapper {
+  margin-left: 260px;
+}
+
+.main-content {
+  flex: 1;
+}
+
+.top-navbar {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.content-area {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.footer {
+  border-top: 1px solid #e5e5e5;
+  padding: 0.75rem 1.5rem;
+  background: #fff;
+}
+
+.sidebar-nav-item {
+  border-radius: 0 !important;
+}
+
+.sidebar-nav .nav-item:last-child {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notification-bell {
+  position: relative;
+}
+
+#notification-count-badge {
+  top: -8px;
+  right: -8px;
+  font-size: 0.65rem;
+  min-width: 20px;
+  height: 20px;
+}
+
+.card {
+  border-radius: 0.5rem;
+}
+
+.card-header {
+  font-weight: 600;
+}
+
+.btn {
+  border-radius: 0.375rem;
+}
+
+.alert {
+  border-radius: 0.5rem;
+  border: none;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-wrapper {
+    margin-left: 0;
+  }
+
+  .sidebar {
+    position: fixed;
+    z-index: 1030;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+}

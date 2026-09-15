@@ -1,0 +1,401 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+    ViewData["PageTitle"] = "System Management Dashboard";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-speedometer2 me-2"></i>System Management Dashboard
+    </h1>
+    <div>
+        <span class="badge bg-primary-subtle text-primary fs-6">@Model.CurrentRole</span>
+    </div>
+</div>
+
+<partial name="_DashboardSummary" model="Model" />
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Recent Alerts</h5>
+                <a asp-controller="Alerts" asp-action="Index" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentAlerts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Canal</th>
+                                    <th>Title</th>
+                                    <th>Time</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var alert in Model.RecentAlerts)
+                                {
+                                    <tr>
+                                        <td>
+                                            @{
+                                                var severityClass = alert.Severity switch
+                                                {
+                                                    "Critical" => "danger",
+                                                    "High" => "warning",
+                                                    "Medium" => "info",
+                                                    _ => "secondary"
+                                                };
+                                            }
+                                            <span class="badge bg-@severityClass">@alert.Severity</span>
+                                        </td>
+                                        <td>@alert.Canal?.CanalName</td>
+                                        <td class="fw-medium">@alert.Title</td>
+                                        <td class="small text-muted">@{
+                                                var timeAgo = DateTime.UtcNow - alert.DetectedAt;
+                                                @($"{timeAgo.TotalMinutes:F0} min ago")
+                                            }</td>
+                                        <td>
+                                            <span class="badge bg-secondary">@alert.Status</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">
+                        <i class="bi bi-check-circle-fill me-2"></i>No recent alerts
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-journal-text me-2 text-warning"></i>Recent Reports</h5>
+                <a asp-controller="Reports" asp-action="Index" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentReports.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Canal</th>
+                                    <th>Title</th>
+                                    <th>Type</th>
+                                    <th>Time</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var report in Model.RecentReports)
+                                {
+                                    <tr>
+                                        <td>@report.Canal?.CanalName</td>
+                                        <td class="fw-medium">@report.Title</td>
+                                        <td class="small">@report.ReportType</td>
+                                        <td class="small text-muted">@{
+                                                var timeAgo = DateTime.UtcNow - report.CreatedAt;
+                                                @($"{timeAgo.TotalMinutes:F0} min ago")
+                                            }</td>
+                                        <td>
+                                            @{
+                                                var statusClass = report.Status switch
+                                                {
+                                                    "Resolved" => "success",
+                                                    "In Progress" => "warning",
+                                                    "Pending" => "secondary",
+                                                    "Rejected" => "danger",
+                                                    _ => "info"
+                                                };
+                                            }
+                                            <span class="badge bg-@statusClass">@report.Status</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">
+                        <i class="bi bi-check-circle-fill me-2"></i>No recent reports
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-water me-2"></i>Canal Status</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.CanalStatusOverview.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Canal</th>
+                                    <th>Barangay</th>
+                                    <th>Status</th>
+                                    <th>Sensors</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var canal in Model.CanalStatusOverview)
+                                {
+                                    <tr>
+                                        <td class="fw-medium">@canal.CanalName</td>
+                                        <td class="small">@canal.Barangay</td>
+                                        <td>
+                                            @{
+                                                var statusColor = canal.Status switch
+                                                {
+                                                    "Normal" => "success",
+                                                    "Warning" => "warning",
+                                                    "Critical" => "danger",
+                                                    "Inactive" => "secondary",
+                                                    _ => "secondary"
+                                                };
+                                            }
+                                            <span class="badge bg-@statusColor">@canal.Status</span>
+                                        </td>
+                                        <td class="small text-muted">@canal.Sensors.Count(s => s.Status == "Online") online</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">No canals registered.</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-bell-fill me-2"></i>Flood Risk Overview</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentRiskAssessments.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Canal</th>
+                                    <th>Risk Score</th>
+                                    <th>Level</th>
+                                    <th>Assessed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var risk in Model.RecentRiskAssessments)
+                                {
+                                    <tr>
+                                        <td class="fw-medium">@risk.Canal?.CanalName</td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="progress me-2" style="width: 60px; height: 18px;">
+                                                    <div class="progress-bar @GetRiskClass(risk.RiskLevel)" role="progressbar"
+                                                         style="width: @(risk.RiskScore)%"></div>
+                                                </div>
+                                                <span class="small">@risk.RiskScore</span>
+                                            </div>
+                                        </td>
+                                        <td>@{
+                                                var riskColor = risk.RiskLevel switch
+                                                {
+                                                    "Critical" => "danger",
+                                                    "High" => "warning",
+                                                    "Moderate" => "info",
+                                                    _ => "success"
+                                                };
+                                            }
+                                            <span class="badge bg-@riskColor">@risk.RiskLevel</span></td>
+                                        <td class="small text-muted">@{
+                                                var timeAgo = DateTime.UtcNow - risk.AssessmentDate;
+                                                @($"{timeAgo.TotalHours:F0}h ago")
+                                            }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">No risk assessments available.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Water Level Trend</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="waterLevelChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-gear-fill me-2"></i>Sensor Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Sensor</th>
+                                <th>Type</th>
+                                <th>Canal</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sensor in Model.SensorStatus.Take(10))
+                            {
+                                <tr>
+                                    <td class="fw-medium">@sensor.SensorCode</td>
+                                    <td class="small">@sensor.SensorType</td>
+                                    <td class="small">@sensor.Canal?.CanalName</td>
+                                    <td>
+                                        @{
+                                            var sensorColor = sensor.Status switch
+                                            {
+                                                "Online" => "success",
+                                                "Offline" => "danger",
+                                                "Maintenance" => "warning",
+                                                _ => "secondary"
+                                            };
+                                        }
+                                        <span class="badge bg-@sensorColor">@sensor.Status</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-megaphone me-2"></i>Latest Announcements</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Announcements.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var ann in Model.Announcements)
+                        {
+                            <li class="list-group-item border-0 py-2">
+                                <div class="d-flex">
+                                    @if (ann.ImagePath != null)
+                                    {
+                                        <img src="@ann.ImagePath" class="me-2 rounded" style="width: 40px; height: 40px; object-fit: cover;" />
+                                    }
+                                    <div>
+                                        <h6 class="mb-1 fw-medium">@ann.Title</h6>
+                                        <p class="text-muted small mb-0 text-truncate" style="max-width: 250px;">@ann.Content</p>
+                                        <small class="text-muted">@ann.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                    </div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">No announcements.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var ctx = document.getElementById('waterLevelChart').getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Water Level (m)',
+                        data: [],
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: false } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            function loadChartData() {
+                $.get('/SensorReadings/LatestReadingsJson', function (data) {
+                    var labels = data.map(function (r) { return new Date(r.recordedAt).toLocaleTimeString(); });
+                    var waterLevels = data.map(function (r) { return r.waterLevel; });
+                    chart.data.labels = labels;
+                    chart.data.datasets[0].data = waterLevels;
+                    chart.update();
+                });
+            }
+            loadChartData();
+            setInterval(loadChartData, 30000);
+        });
+    </script>
+}
+
+@functions {
+    private string GetRiskClass(string level)
+    {
+        return level switch
+        {
+            "Critical" => "bg-danger",
+            "High" => "bg-warning",
+            "Moderate" => "bg-info",
+            "Low" => "bg-success",
+            _ => "bg-secondary"
+        };
+    }
+}

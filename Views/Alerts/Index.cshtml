@@ -1,0 +1,122 @@
+@model IEnumerable<ObstructionAlert>
+@{
+    ViewData["Title"] = "Obstruction Alerts";
+    ViewData["PageTitle"] = "Alerts Management";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Obstruction Alerts
+    </h1>
+    <a asp-controller="Alerts" asp-action="Index" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </a>
+</div>
+
+<form asp-action="Index" method="get" class="card border-0 shadow-sm p-3 mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label small">Status</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">All Statuses</option>
+                <option value="Active" selected="@(ViewBag.CurrentStatus == "Active")">Active</option>
+                <option value="Acknowledged" selected="@(ViewBag.CurrentStatus == "Acknowledged")">Acknowledged</option>
+                <option value="In Progress" selected="@(ViewBag.CurrentStatus == "In Progress")">In Progress</option>
+                <option value="Resolved" selected="@(ViewBag.CurrentStatus == "Resolved")">Resolved</option>
+                <option value="Dismissed" selected="@(ViewBag.CurrentStatus == "Dismissed")">Dismissed</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small">Severity</label>
+            <select name="severity" class="form-select form-select-sm">
+                <option value="">All Severities</option>
+                <option value="Critical" selected="@(ViewBag.CurrentSeverity == "Critical")">Critical</option>
+                <option value="High" selected="@(ViewBag.CurrentSeverity == "High")">High</option>
+                <option value="Medium" selected="@(ViewBag.CurrentSeverity == "Medium")">Medium</option>
+                <option value="Low" selected="@(ViewBag.CurrentSeverity == "Low")">Low</option>
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-funnel me-1"></i>Filter
+            </button>
+        </div>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Canal</th>
+                <th>Alert</th>
+                <th>Severity</th>
+                <th>Water Level</th>
+                <th>Status</th>
+                <th>Detected</th>
+                <th>Assigned To</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Any())
+            {
+                @foreach (var alert in Model)
+                {
+                    <tr>
+                        <td class="small">@alert.ObstructionAlertId</td>
+                        <td class="fw-medium">@alert.Canal?.CanalName</td>
+                        <td>
+                            <div class="fw-medium">@alert.Title</div>
+                            <small class="text-muted text-truncate d-block" style="max-width: 200px;">@alert.Description</small>
+                        </td>
+                        <td>
+                            @{
+                                var sevClass = alert.Severity switch
+                                {
+                                    "Critical" => "danger",
+                                    "High" => "warning",
+                                    "Medium" => "info",
+                                    "Low" => "success",
+                                    _ => "secondary"
+                                };
+                            }
+                            <span class="badge bg-@sevClass">@alert.Severity</span>
+                        </td>
+                        <td class="small">@alert.WaterLevel m</td>
+                        <td>
+                            @{
+                                var statusClass = alert.Status switch
+                                {
+                                    "Active" => "danger",
+                                    "Acknowledged" => "info",
+                                    "In Progress" => "warning",
+                                    "Resolved" => "success",
+                                    "Dismissed" => "secondary",
+                                    _ => "secondary"
+                                };
+                            }
+                            <span class="badge bg-@statusClass">@alert.Status</span>
+                        </td>
+                        <td class="small text-muted">@(Math.Round((DateTime.UtcNow - alert.DetectedAt).TotalHours, 1))h ago</td>
+                        <td class="small">@(alert.AssignedToUser?.UserName ?? "Unassigned")</td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@alert.ObstructionAlertId" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">
+                        <i class="bi bi-check-circle-fill me-2"></i>No alerts match the current filters.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

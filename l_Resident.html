@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="COMS - Canal Obstruction Monitoring System" />
+    <title>Login - COMS</title>
+    <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css?v=PI8n5gCcz9cQqQXm3PEtDuPG8qx9oFsFctPg0S5zb8g" />
+    <link rel="stylesheet" href="/lib/bootstrap-icons.css?v=T_pr6kME0u2kGGg_ViYWhe1HvwCZUDnyflrWLVOTjS0" />
+    <link rel="stylesheet" href="/css/site.css?v=3geYYnzXno4tzoGL2LAmtt_ngSDBva7BtzqZfKsqMi8" />
+    
+</head>
+<body class="bg-light">
+        <main b-frmd8nys6x class="content-area">
+            
+<div class="d-flex align-items-center justify-content-center min-vh-100 bg-light">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-5 col-lg-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <i class="bi bi-waterways display-4 text-primary"></i>
+                            <h2 class="mt-3 mb-1">COMS</h2>
+                            <p class="text-muted small">Canal Obstruction Monitoring System</p>
+                        </div>
+
+                        <form method="post" action="/Account/Login">
+                            
+                            <div class="mb-3">
+                                <label class="form-label" for="Username">Username / Email</label>
+                                <input class="form-control" placeholder="Username or Email" type="text" data-val="true" data-val-required="Username or email is required" id="Username" name="Username" value="" />
+                                <span class="text-danger small field-validation-valid" data-valmsg-for="Username" data-valmsg-replace="true"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="Password">Password</label>
+                                <input class="form-control" type="password" placeholder="Password" data-val="true" data-val-required="Password is required" id="Password" name="Password" />
+                                <span class="text-danger small field-validation-valid" data-valmsg-for="Password" data-valmsg-replace="true"></span>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input class="form-check-input" type="checkbox" data-val="true" data-val-required="The Remember me field is required." id="RememberMe" name="RememberMe" value="true" />
+                                <label class="form-check-label" for="RememberMe">Remember me</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 py-2">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                            </button>
+                        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8IF7N6E4uIxFumHwuzjvkU01B8xHcKBbOrMYBg5H19KA9H1aGzeDC5t19hLzcn9dfioOobVYr6eZXNWJxjazjkHRjvsPj__iz_zIsKibKJqh5Vabbk-YXyPTGjigz4zdn9uuANIfB_DhFXisBRaZiw4" /><input name="RememberMe" type="hidden" value="false" /></form>
+
+                        <div class="text-center mt-4 pt-3 border-top">
+                            <p class="mb-2 small text-muted fw-medium">Demo Accounts</p>
+                            <ul class="list-unstyled">
+                                <li class="mb-1"><small><code>admin@coms.gov</code> — Admin</small></li>
+                                <li class="mb-1"><small><code>lgu@coms.gov</code> — LGU</small></li>
+                                <li class="mb-1"><small><code>barangay@coms.gov</code> — Barangay</small></li>
+                                <li class="mb-1"><small><code>maintenance@coms.gov</code> — Maintenance</small></li>
+                                <li class="mb-0"><small><code>resident@coms.gov</code> — Resident</small></li>
+                            </ul>
+                            <p class="mb-1 mt-2">
+                                Don't have an account?
+                                <a class="text-decoration-none" href="/Account/Register">Register here</a>
+                            </p>
+                            <small class="text-muted">Passwords are unique per account. See README.md for development credentials.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+        </main>
+
+    <script src="/lib/jquery/dist/jquery.min.js"></script>
+    <script src="/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/lib/signalr/signalr.min.js"></script>
+    <script src="/js/site.js?v=ERBXwH_xoAbIzM_nLLHRoPLEK6koKwsPbNNGCwageHU"></script>
+    
+    <script src="/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+<script src="/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
+
+
+</body>
+</html>

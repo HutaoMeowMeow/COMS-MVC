@@ -1,0 +1,131 @@
+@model Canal
+@{
+    ViewData["Title"] = "Edit Canal";
+    ViewData["PageTitle"] = "Edit Canal";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-pencil me-2"></i>Edit Canal</h1>
+    <div>
+        <a asp-action="Details" asp-route-id="@Model.CanalId" class="btn btn-outline-secondary">
+            <i class="bi bi-eye me-1"></i>Details
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary ms-2">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<form asp-action="Edit" method="post" asp-route-id="@Model.CanalId">
+    @Html.AntiForgeryToken()
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Canal Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="CanalName" class="form-label"></label>
+                    <input asp-for="CanalName" class="form-control" />
+                    <span asp-validation-for="CanalName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Location" class="form-label"></label>
+                    <input asp-for="Location" class="form-control" />
+                    <span asp-validation-for="Location" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Barangay" class="form-label"></label>
+                    <input asp-for="Barangay" class="form-control" />
+                    <span asp-validation-for="Barangay" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="City" class="form-label"></label>
+                    <input asp-for="City" class="form-control" />
+                    <span asp-validation-for="City" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Geographic Coordinates</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Latitude" class="form-label"></label>
+                    <input asp-for="Latitude" class="form-control" step="0.0001" />
+                    <span asp-validation-for="Latitude" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Longitude" class="form-label"></label>
+                    <input asp-for="Longitude" class="form-control" step="0.0001" />
+                    <span asp-validation-for="Longitude" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-rulers me-2"></i>Canal Dimensions & Thresholds</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label asp-for="Length" class="form-label"></label>
+                    <input asp-for="Length" class="form-control" step="0.1" />
+                    <span asp-validation-for="Length" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Width" class="form-label"></label>
+                    <input asp-for="Width" class="form-control" step="0.1" />
+                    <span asp-validation-for="Width" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Depth" class="form-label"></label>
+                    <input asp-for="Depth" class="form-control" step="0.1" />
+                    <span asp-validation-for="Depth" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Status" class="form-label"></label>
+                    <select asp-for="Status" class="form-select" asp-items="ViewBag.StatusList"></select>
+                    <span asp-validation-for="Status" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="NormalWaterLevel" class="form-label"></label>
+                    <input asp-for="NormalWaterLevel" class="form-control" step="0.01" />
+                    <span asp-validation-for="NormalWaterLevel" class="text-danger small"></span>
+                    <div class="form-text">Normal operating water level</div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="WarningWaterLevel" class="form-label"></label>
+                    <input asp-for="WarningWaterLevel" class="form-control" step="0.01" />
+                    <span asp-validation-for="WarningWaterLevel" class="text-danger small"></span>
+                    <div class="form-text">Level that triggers warnings</div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="CriticalWaterLevel" class="form-label"></label>
+                    <input asp-for="CriticalWaterLevel" class="form-control" step="0.01" />
+                    <span asp-validation-for="CriticalWaterLevel" class="text-danger small"></span>
+                    <div class="form-text">Level that triggers critical alerts</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Save Changes
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

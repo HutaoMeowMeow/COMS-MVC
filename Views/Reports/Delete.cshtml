@@ -1,0 +1,54 @@
+@model CommunityReport
+@{
+    ViewData["Title"] = "Delete Report";
+    ViewData["PageTitle"] = "Delete Report";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-danger">
+        <i class="bi bi-trash me-2"></i>Delete Report
+    </h1>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Reports
+    </a>
+</div>
+
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Warning:</strong> This action will permanently delete this report and all associated data.
+    This operation cannot be undone.
+</div>
+
+<form asp-action="Delete" method="post" asp-route-id="@Model.CommunityReportId">
+    @Html.AntiForgeryToken()
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-danger bg-opacity-10 border-bottom">
+            <h5 class="mb-0 text-danger"><i class="bi bi-journal-text me-2"></i>Report Details</h5>
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-4 text-muted">Title</dt>
+                <dd class="col-sm-8 mb-2">@Model.Title</dd>
+                <dt class="col-sm-4 text-muted">Canal</dt>
+                <dd class="col-sm-8 mb-2">@Model.Canal?.CanalName</dd>
+                <dt class="col-sm-4 text-muted">Type</dt>
+                <dd class="col-sm-8 mb-2">@Model.ReportType</dd>
+                <dt class="col-sm-4 text-muted">Submitted By</dt>
+                <dd class="col-sm-8 mb-2">@Model.User?.FullName</dd>
+                <dt class="col-sm-4 text-muted">Status</dt>
+                <dd class="col-sm-8 mb-2">@Model.Status</dd>
+                <dt class="col-sm-4 text-muted">Submitted</dt>
+                <dd class="col-sm-8 mb-2">@Model.CreatedAt.ToString("g")</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Delete Report
+        </button>
+    </div>
+</form>

@@ -1,0 +1,74 @@
+@model IEnumerable<Canal>
+@{
+    ViewData["Title"] = "Canal Map";
+    ViewData["PageTitle"] = "Canal Map";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-geo-alt me-2"></i>Canal Map Monitoring
+    </h1>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Canals
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom">
+        <h5 class="mb-0"><i class="bi bi-map me-2"></i>Canal Locations & Status</h5>
+    </div>
+    <div class="card-body">
+        <div id="monitoringMap" style="height: 600px;" class="rounded border"></div>
+
+        <div class="mt-3">
+            <div class="d-flex gap-3 flex-wrap small">
+                <span class="badge bg-success text-white"><i class="bi bi-circle-fill me-1"></i>Normal</span>
+                <span class="badge bg-warning text-white"><i class="bi bi-circle-fill me-1"></i>Warning</span>
+                <span class="badge bg-danger text-white"><i class="bi bi-circle-fill me-1"></i>Critical</span>
+                <span class="badge bg-secondary text-white"><i class="bi bi-circle-fill me-1"></i>Inactive</span>
+                <span class="badge bg-primary text-white"><i class="bi bi-water me-1"></i>Active Alert</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var map = L.map('monitoringMap').setView([14.6257, 121.0456], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            var canals = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }))
+
+            canals.forEach(function (canal) {
+                var severity = canal.status.toLowerCase();
+                var color = severity === 'normal' ? 'green' :
+                    severity === 'warning' ? 'orange' :
+                    severity === 'critical' ? 'red' : 'gray';
+
+                var marker = L.marker([canal.latitude, canal.longitude], {
+                    icon: L.divIcon({
+                        html: '<i class="bi bi-water fs-4" style="color:' + color + ';"></i>',
+                        className: 'canal-marker',
+                        iconSize: [24, 24]
+                    })
+                }).addTo(map);
+
+                var popupContent = '<div class="p-2">' +
+                    '<h6 class="mb-1 fw-bold">' + canal.canalName + '</h6>' +
+                    '<p class="small mb-1"><i class="bi bi-geo-alt me-1"></i>' + canal.location + '</p>' +
+                    '<p class="small mb-2"><span class="badge bg-' +
+                    (severity === 'normal' ? 'success' : severity === 'warning' ? 'warning' : severity === 'critical' ? 'danger' : 'secondary') +
+                    '">' + canal.status + '</span></p>' +
+                    '<a href="/Canals/Details/' + canal.canalId + '" class="btn btn-sm btn-primary">View Details</a>' +
+                    '</div>';
+
+                marker.bindPopup(popupContent);
+            });
+        });
+    </script>
+}

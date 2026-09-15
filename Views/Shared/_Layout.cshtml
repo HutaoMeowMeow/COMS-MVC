@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="COMS - Canal Obstruction Monitoring System" />
+    <title>@ViewData["Title"] - COMS</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+    <body class="bg-light">
+        <script>window.isAuthenticated = @User.Identity.IsAuthenticated.ToString().ToLower();</script>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <div class="dashboard-wrapper d-flex">
+            <partial name="_Sidebar" />
+
+            <div class="main-content flex-fill d-flex flex-column min-vh-100">
+                <partial name="_TopNavbar" />
+
+                <main class="content-area flex-fill">
+                    @if (TempData["SuccessMessage"] != null)
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            @TempData["SuccessMessage"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @if (TempData["ErrorMessage"] != null)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            @TempData["ErrorMessage"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @if (TempData["AlertMessage"] != null)
+                    {
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-circle-fill me-2"></i>
+                            @TempData["AlertMessage"]
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @RenderBody()
+                </main>
+
+                <footer class="footer border-top">
+                    <div class="container-fluid py-2 px-4">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-c-circle me-1"></i>
+                                COMS - Canal Obstruction Monitoring System | Philippines Local Government Prototype
+                            </small>
+                            <small class="text-muted">
+                                @if (DateTime.UtcNow.Year == 2026)
+                                {
+                                    <text>2026</text>
+                                }
+                                else
+                                {
+                                    <text>2026 - @DateTime.UtcNow.Year</text>
+                                }
+                            </small>
+                        </div>
+                    </div>
+                </footer>
+            </div>
+        </div>
+    }
+    else
+    {
+        <main class="content-area">
+            @RenderBody()
+        </main>
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/signalr/signalr.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

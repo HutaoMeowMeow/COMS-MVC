@@ -1,0 +1,253 @@
+@model Canal
+@{
+    ViewData["Title"] = @Model.CanalName;
+    ViewData["PageTitle"] = "Canal Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-water me-2"></i>@Model.CanalName
+    </h1>
+    <div>
+        @{
+            var statusClass = Model.Status switch
+            {
+                "Normal" => "success",
+                "Warning" => "warning",
+                "Critical" => "danger",
+                "Inactive" => "secondary",
+                _ => "secondary"
+            };
+        }
+        <span class="badge bg-@statusClass fs-6">@Model.Status</span>
+        @if (User.IsInRole("Admin"))
+        {
+            <a asp-action="Edit" asp-route-id="@Model.CanalId" class="btn btn-sm btn-outline-warning ms-2">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Canal Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <dl class="row mb-0">
+                            <dt class="col-5 text-muted small">Canal Name</dt>
+                            <dd class="col-7 mb-2">@Model.CanalName</dd>
+                            <dt class="col-5 text-muted small">Location</dt>
+                            <dd class="col-7 mb-2">@Model.Location</dd>
+                            <dt class="col-5 text-muted small">Barangay</dt>
+                            <dd class="col-7 mb-2">@Model.Barangay</dd>
+                            <dt class="col-5 text-muted small">City / Municipality</dt>
+                            <dd class="col-7 mb-2">@Model.City</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row mb-0">
+                            <dt class="col-5 text-muted small">Length (m)</dt>
+                            <dd class="col-7 mb-2">@Model.Length</dd>
+                            <dt class="col-5 text-muted small">Width (m)</dt>
+                            <dd class="col-7 mb-2">@Model.Width</dd>
+                            <dt class="col-5 text-muted small">Depth (m)</dt>
+                            <dd class="col-7 mb-2">@Model.Depth</dd>
+                            <dt class="col-5 text-muted small">Normal Level</dt>
+                            <dd class="col-7 mb-2">@Model.NormalWaterLevel m</dd>
+                            <dt class="col-5 text-muted small">Warning Level</dt>
+                            <dd class="col-7 mb-2">@Model.WarningWaterLevel m</dd>
+                            <dt class="col-5 text-muted small">Critical Level</dt>
+                            <dd class="col-7 mb-2">@Model.CriticalWaterLevel m</dd>
+                            <dt class="col-5 text-muted small">Created</dt>
+                            <dd class="col-7 mb-2">@Model.CreatedAt.ToString("MMM dd, yyyy")</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-gear-fill me-2"></i>Sensors</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Sensors.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Sensor Code</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Last Reading</th>
+                                    <th>Last Communication</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sensor in Model.Sensors)
+                                {
+                                    <tr>
+                                        <td class="fw-medium">@sensor.SensorCode</td>
+                                        <td class="small">@sensor.SensorType</td>
+                                        <td>
+                                            @{
+                                                var sensorClass = sensor.Status == "Online" ? "success" :
+                                                    sensor.Status == "Offline" ? "danger" : "warning";
+                                            }
+                                            <span class="badge bg-@sensorClass">@sensor.Status</span>
+                                        </td>
+                                        <td class="small text-muted">@sensor.LastReading.ToString("g")</td>
+                                        <td class="small text-muted">@sensor.LastCommunication.ToString("g")</td>
+                                        <td>
+                                            <a asp-controller="Sensors" asp-action="Details" asp-route-id="@sensor.SensorId" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">No sensors registered for this canal.</p>
+                }
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Active Alerts</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Alerts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Title</th>
+                                    <th>Description</th>
+                                    <th>Detected</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var alert in Model.Alerts)
+                                {
+                                    <tr>
+                                        <td>
+                                            @{
+                                                var sevClass = alert.Severity switch
+                                                {
+                                                    "Critical" => "danger",
+                                                    "High" => "warning",
+                                                    "Medium" => "info",
+                                                    _ => "secondary"
+                                                };
+                                            }
+                                            <span class="badge bg-@sevClass">@alert.Severity</span>
+                                        </td>
+                                        <td class="fw-medium">@alert.Title</td>
+                                        <td class="small">@alert.Description</td>
+                                        <td class="small text-muted">@alert.DetectedAt.ToString("g")</td>
+                                        <td><span class="badge bg-secondary">@alert.Status</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end mt-2">
+                        <a asp-controller="Alerts" asp-action="Index" class="btn btn-sm btn-outline-primary">
+                            View All Alerts
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">
+                        <i class="bi bi-check-circle-fill me-2 text-success"></i> No active alerts
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Location</h5>
+            </div>
+            <div class="card-body">
+                <div id="canalMap" style="height: 250px;" class="rounded border"></div>
+                <div class="mt-2 small text-muted">
+                    <strong>Latitude:</strong> @Model.Latitude<br />
+                    <strong>Longitude:</strong> @Model.Longitude
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Latest Water Level</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="display-4 fw-bold text-primary mb-1">@(Model.SensorReadings.OrderByDescending(sr => sr.RecordedAt).FirstOrDefault()?.WaterLevel ?? 0) m</div>
+                <div class="small text-muted">
+                    Normal: @Model.NormalWaterLevel m | Warning: @Model.WarningWaterLevel m | Critical: @Model.CriticalWaterLevel m
+                </div>
+            </div>
+        </div>
+
+        @if (User.IsInRole("Admin,LGU,Barangay,Maintenance"))
+        {
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0"><i class="bi bi-play-circle me-2"></i>Test Actions</h5>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="SensorReadings" asp-action="GenerateTestReading" method="post"
+                          asp-route-canalId="@Model.CanalId">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                            Generate Test Reading
+                        </button>
+                    </form>
+                    <form asp-controller="FloodRisk" asp-action="Assess" method="post" asp-route-canalId="@Model.CanalId">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-info btn-sm w-100 mt-2">
+                            Assess Flood Risk
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var lat = @Model.Latitude;
+            var lng = @Model.Longitude;
+            var map = L.map('canalMap').setView([lat, lng], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            L.marker([lat, lng]).addTo(map)
+                .bindPopup('<b>@Model.CanalName</b><br/>@Model.Location')
+                .openPopup();
+        });
+    </script>
+}

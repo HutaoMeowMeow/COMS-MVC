@@ -1,0 +1,70 @@
+@model Sensor
+@{
+    ViewData["Title"] = "Edit Sensor";
+    ViewData["PageTitle"] = "Edit Sensor";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-pencil me-2"></i>Edit Sensor</h1>
+    <div>
+        <a asp-action="Details" asp-route-id="@Model.SensorId" class="btn btn-sm btn-outline-primary">Details</a>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary ms-2">Back</a>
+    </div>
+</div>
+
+<form asp-action="Edit" method="post" asp-route-id="@Model.SensorId">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="SensorId" />
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Sensor Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="SensorCode" class="form-label"></label>
+                    <input asp-for="SensorCode" class="form-control" />
+                    <span asp-validation-for="SensorCode" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="SensorType" class="form-label"></label>
+                    <select asp-for="SensorType" class="form-select" asp-items="(SelectList)ViewBag.SensorTypeList">
+                        <option value="">Select type</option>
+                    </select>
+                    <span asp-validation-for="SensorType" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="CanalId" class="form-label"></label>
+                    <select asp-for="CanalId" class="form-select" asp-items="(SelectList)ViewBag.CanalList">
+                        <option value="">Select canal</option>
+                    </select>
+                    <span asp-validation-for="CanalId" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Status" class="form-label"></label>
+                    <select asp-for="Status" class="form-select" asp-items="(SelectList)ViewBag.StatusList"></select>
+                    <span asp-validation-for="Status" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Latitude" class="form-label"></label>
+                    <input asp-for="Latitude" class="form-control" step="0.0001" />
+                    <span asp-validation-for="Latitude" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Longitude" class="form-label"></label>
+                    <input asp-for="Longitude" class="form-control" step="0.0001" />
+                    <span asp-validation-for="Longitude" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Cancel</a>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

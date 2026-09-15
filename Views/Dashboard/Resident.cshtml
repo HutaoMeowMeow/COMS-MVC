@@ -1,0 +1,208 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Resident Dashboard";
+    ViewData["PageTitle"] = "Resident Dashboard";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-speedometer2 me-2"></i>Resident Dashboard
+        </h1>
+        <p class="text-muted small mb-0">Welcome, @Model.UserName</p>
+    </div>
+    <span class="badge bg-primary-subtle text-primary fs-6">RESIDENT</span>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 text-center">
+            <div class="card-body">
+                <i class="bi bi-water fs-2 text-primary mb-2"></i>
+                <div class="text-muted small">CANALS</div>
+                <div class="h3 fw-bold">@Model.TotalCanals</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 text-center">
+            <div class="card-body">
+                <i class="bi bi-exclamation-triangle-fill fs-2 text-danger mb-2"></i>
+                <div class="text-muted small">ACTIVE ALERTS</div>
+                <div class="h3 fw-bold">@Model.ActiveAlerts</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 text-center">
+            <div class="card-body">
+                <i class="bi bi-journal-text fs-2 text-warning mb-2"></i>
+                <div class="text-muted small">MY REPORTS</div>
+                <div class="h3 fw-bold">@Model.RecentReports.Count</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100 text-center">
+            <div class="card-body">
+                <i class="bi bi-bell-fill fs-2 text-info mb-2"></i>
+                <div class="text-muted small">HIGH RISK</div>
+                <div class="h3 fw-bold">@Model.HighRiskCanals</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Active Alerts & Advisories</h5>
+                <a asp-controller="Alerts" asp-action="Index" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentAlerts.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var alert in Model.RecentAlerts)
+                        {
+                            <li class="list-group-item border-0 py-2">
+                                <div class="d-flex align-items-start">
+                                    <div class="me-2">
+                                        @{
+                                            var sevClass = alert.Severity == "Critical" ? "bg-danger" :
+                                                alert.Severity == "High" ? "bg-warning" :
+                                                alert.Severity == "Medium" ? "bg-info" : "bg-secondary";
+                                        }
+                                        <span class="badge @sevClass text-white">@alert.Severity</span>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1 fw-medium">@alert.Title</h6>
+                                        <p class="text-muted small mb-1">@alert.Canal?.CanalName</p>
+                                        <small class="text-muted">
+                                            @{
+                                                var mins = Math.Round((DateTime.UtcNow - alert.DetectedAt).TotalMinutes);
+                                                @($"Updated {mins} min ago")
+                                            }
+                                        </small>
+                                    </div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">
+                        <i class="bi bi-check-circle-fill me-2 text-success"></i>No active alerts
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between">
+                <h5 class="mb-0"><i class="bi bi-megaphone me-2 text-info"></i>Announcements</h5>
+                <a asp-controller="Announcements" asp-action="Index" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.Announcements.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var ann in Model.Announcements)
+                        {
+                            <li class="list-group-item border-0 py-2">
+                                <h6 class="mb-1 fw-medium">@ann.Title</h6>
+                                <p class="text-muted small mb-1 text-truncate">@ann.Content</p>
+                                <small class="text-muted">@ann.CreatedAt.ToString("MMM dd, yyyy")</small>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-3 mb-0">No announcements.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0"><i class="bi bi-bell-fill me-2"></i>Flood Risk Advisory</h5>
+            <a asp-controller="FloodRisk" asp-action="Index" class="text-decoration-none small">View Details</a>
+        </div>
+
+        @if (Model.RecentRiskAssessments.Any())
+        {
+            <div class="row g-3">
+                @foreach (var risk in Model.RecentRiskAssessments)
+                {
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title fw-medium">@risk.Canal?.CanalName</h6>
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" style="width: @(risk.RiskScore)%"></div>
+                                    </div>
+                                    <span class="fw-bold">@risk.RiskScore%</span>
+                                </div>
+                                @{
+                                    var riskClass = risk.RiskLevel == "Critical" ? "danger" :
+                                        risk.RiskLevel == "High" ? "warning" :
+                                        risk.RiskLevel == "Moderate" ? "info" : "success";
+                                }
+                                <span class="badge bg-@riskClass">@risk.RiskLevel Risk</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="text-muted">No risk assessments available.</p>
+        }
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0"><i class="bi bi-water me-2"></i>Canal Water Levels</h5>
+        </div>
+        <canvas id="residentChart" height="100"></canvas>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var ctx = document.getElementById('residentChart').getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: [], datasets: [{
+                    label: 'Water Level (m)', data: [], backgroundColor: 'rgba(13, 110, 253, 0.7)'
+                }]},
+                options: { responsive: true, indexAxis: 'y',
+                    scales: { x: { beginAtZero: true } },
+                    plugins: { legend: { display: false } } }
+            });
+            function loadData() {
+                $.get('/SensorReadings/LatestReadingsJson', function (data) {
+                    chart.data.labels = data.map(function (r) { return r.canalName; });
+                    chart.data.datasets[0].data = data.map(function (r) { return r.waterLevel; });
+                    chart.update();
+                });
+            }
+            loadData();
+            setInterval(loadData, 30000);
+        });
+    </script>
+}
