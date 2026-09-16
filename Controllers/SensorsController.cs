@@ -52,14 +52,30 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create(Sensor sensor)
         {
+            sensor.SensorCode = (sensor.SensorCode ?? string.Empty).Trim();
+            sensor.SensorType = (sensor.SensorType ?? string.Empty).Trim();
+            sensor.Status = string.IsNullOrWhiteSpace(sensor.Status) ? "Online" : sensor.Status.Trim();
+            await ValidateSensorAsync(sensor, isNew: true);
+
             if (ModelState.IsValid)
             {
-                sensor.LastReading = DateTime.UtcNow;
-                sensor.LastCommunication = DateTime.UtcNow;
-                _context.Sensors.Add(sensor);
-                await _context.SaveChangesAsync();
-                TempData["SuccessMessage"] = $"Sensor '{sensor.SensorCode}' created successfully.";
-                return RedirectToAction(nameof(Index));
+                try
+                {
+                    sensor.LastReading = DateTime.UtcNow;
+                    sensor.LastCommunication = DateTime.UtcNow;
+                    _context.Sensors.Add(sensor);
+                    await _context.SaveChangesAsync();
+                    TempData["SuccessMessage"] = $"Sensor '{sensor.SensorCode}' created successfully.";
+                    return RedirectToAction(nameof(Index));
+                }
+                catch (DbUpdateException)
+                {
+                    ModelState.AddModelError(string.Empty, "Could not save the sensor. The sensor code may already exist.");
+                }
+                catch (Exception)
+                {
+                    ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the sensor. Please try again.");
+                }
             }
 
             await PopulateDropDownsAsync();
@@ -90,6 +106,11 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
+            sensor.SensorCode = (sensor.SensorCode ?? string.Empty).Trim();
+            sensor.SensorType = (sensor.SensorType ?? string.Empty).Trim();
+            sensor.Status = string.IsNullOrWhiteSpace(sensor.Status) ? "Online" : sensor.Status.Trim();
+            await ValidateSensorAsync(sensor, isNew: false);
+
             if (ModelState.IsValid)
             {
                 try
@@ -97,6 +118,7 @@ namespace COMS_MVC.Controllers
                     _context.Update(sensor);
                     await _context.SaveChangesAsync();
                     TempData["SuccessMessage"] = $"Sensor '{sensor.SensorCode}' updated successfully.";
+                    return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateConcurrencyException)
                 {
@@ -106,7 +128,14 @@ namespace COMS_MVC.Controllers
                     }
                     ModelState.AddModelError(string.Empty, "The sensor was modified by another user. Please refresh and try again.");
                 }
-                return RedirectToAction(nameof(Index));
+                catch (DbUpdateException)
+                {
+                    ModelState.AddModelError(string.Empty, "Could not save the sensor. The sensor code may already exist.");
+                }
+                catch (Exception)
+                {
+                    ModelState.AddModelError(string.Empty, "An unexpected error occurred while saving the sensor. Please try again.");
+                }
             }
 
             await PopulateDropDownsAsync();
@@ -140,9 +169,20 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
-            _context.Sensors.Remove(sensor);
-            await _context.SaveChangesAsync();
-            TempData["SuccessMessage"] = $"Sensor '{sensor.SensorCode}' deleted successfully.";
+            try
+            {
+                _context.Sensors.Remove(sensor);
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = $"Sensor '{sensor.SensorCode}' deleted successfully.";
+            }
+            catch (DbUpdateException)
+            {
+                TempData["ErrorMessage"] = $"Cannot delete '{sensor.SensorCode}' because it still has readings linked to it.";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "An unexpected error occurred while deleting the sensor. Please try again.";
+            }
             return RedirectToAction(nameof(Index));
         }
 
@@ -160,9 +200,19 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
-            var rng = new Random();
-            var canal = sensor.Canal;
-            var waterLevel = (float)(canal.NormalWaterLevel + rng.NextDouble() * (canal.CriticalWaterLevel - canal.NormalWaterLevel) * 0.5);
+            if (sensor.Canal == null)
+            {
+                TempData["ErrorMessage"] = "Cannot generate a reading because this sensor is not linked to a canal.";
+                return RedirectToAction(nameof(Details), new { id = sensor.SensorId });
+            }
+
+            try
+            {
+                var rng = Random.Shared;
+                var canal = sensor.Canal;
+                var span = canal.CriticalWaterLevel - canal.NormalWaterLevel;
+                if (span <= 0) span = 1;
+            var waterLevel = (float)(canal.NormalWaterLevel + rng.NextDouble() * span * 0.5);
             var flowRate = rng.NextDouble() * 5 + 1;
             var debrisLevel = rng.NextDouble() * 50;
             var turbidity = rng.NextDouble() * 20;
@@ -202,32 +252,75 @@ namespace COMS_MVC.Controllers
                 TempData["SuccessMessage"] = "Test reading generated successfully. No alerts triggered.";
             }
 
-            await hub.Clients.All.SendAsync("SensorReadingAdded", new
+                try
+                {
+                    await hub.Clients.All.SendAsync("SensorReadingAdded", new
+                    {
+                        reading.SensorReadingId,
+                        reading.SensorId,
+                        reading.CanalId,
+                        reading.WaterLevel,
+                        reading.FlowRate,
+                        reading.DebrisLevel,
+                        reading.Turbidity,
+                        reading.Temperature,
+                        reading.RecordedAt,
+                        reading.IsSimulated,
+                        CanalName = canal.CanalName,
+                        AlertCount = alerts.Count
+                    });
+                }
+                catch
+                {
+                    // Real-time push is best-effort; the reading is already saved.
+                }
+            }
+            catch (Exception)
             {
-                reading.SensorReadingId,
-                reading.SensorId,
-                reading.CanalId,
-                reading.WaterLevel,
-                reading.FlowRate,
-                reading.DebrisLevel,
-                reading.Turbidity,
-                reading.Temperature,
-                reading.RecordedAt,
-                reading.IsSimulated,
-                CanalName = canal.CanalName,
-                AlertCount = alerts.Count
-            });
+                TempData["ErrorMessage"] = "Failed to generate a test reading. Please try again.";
+            }
 
             return RedirectToAction(nameof(Details), new { id = sensor.SensorId });
+        }
+
+        private async Task ValidateSensorAsync(Sensor sensor, bool isNew)
+        {
+            if (sensor.Latitude < 9.30 || sensor.Latitude > 11.45)
+            {
+                ModelState.AddModelError(nameof(sensor.Latitude), "Latitude must be inside Cebu (9.30 to 11.45).");
+            }
+            if (sensor.Longitude < 123.20 || sensor.Longitude > 124.60)
+            {
+                ModelState.AddModelError(nameof(sensor.Longitude), "Longitude must be inside Cebu (123.20 to 124.60).");
+            }
+            if (sensor.CanalId <= 0)
+            {
+                ModelState.AddModelError(nameof(sensor.CanalId), "Please select a canal.");
+            }
+            else if (!await _context.Canals.AnyAsync(c => c.CanalId == sensor.CanalId))
+            {
+                ModelState.AddModelError(nameof(sensor.CanalId), "Selected canal is invalid.");
+            }
+
+            var code = (sensor.SensorCode ?? string.Empty).Trim();
+            if (!string.IsNullOrEmpty(code))
+            {
+                var duplicate = await _context.Sensors.AnyAsync(s => s.SensorCode == code && (isNew || s.SensorId != sensor.SensorId));
+                if (duplicate)
+                {
+                    ModelState.AddModelError(nameof(sensor.SensorCode), "This sensor code is already in use.");
+                }
+            }
         }
 
         private async Task PopulateDropDownsAsync()
         {
             var canals = await _context.Canals
-                .Select(c => new { c.CanalId, c.CanalName })
+                .Select(c => new { c.CanalId, c.CanalName, c.Latitude, c.Longitude })
                 .ToListAsync();
 
             ViewBag.CanalList = new SelectList(canals, "CanalId", "CanalName");
+            ViewBag.CanalCoords = canals.ToDictionary(c => c.CanalId, c => new { lat = c.Latitude, lng = c.Longitude });
 
             var sensorTypes = new List<string> { "Water Level", "Flow Rate", "Debris", "Turbidity", "Temperature" };
             ViewBag.SensorTypeList = new SelectList(sensorTypes);

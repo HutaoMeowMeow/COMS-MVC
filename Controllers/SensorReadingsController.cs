@@ -19,6 +19,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Index(int? canalId = null)
         {
             IQueryable<SensorReading> query = _context.SensorReadings
@@ -78,6 +79,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Details(int id)
         {
             var reading = await _context.SensorReadings
@@ -145,9 +147,18 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> ChartData(int canalId, int hours = 24)
         {
+            if (canalId <= 0)
+            {
+                return BadRequest("Invalid canal.");
+            }
+            if (hours < 1 || hours > 720)
+            {
+                return BadRequest("Hours must be between 1 and 720.");
+            }
             var since = DateTime.UtcNow.AddHours(-hours);
 
             var readings = await _context.SensorReadings
@@ -178,6 +189,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> LatestReadingsJson()
         {
@@ -188,14 +200,14 @@ namespace COMS_MVC.Controllers
                 .Select(g => g.OrderByDescending(sr => sr.RecordedAt).FirstOrDefault())
                 .ToListAsync();
 
-            return Json(readings.Select(sr => new
+            return Json(readings.Where(sr => sr != null).Select(sr => new
             {
-                sr.SensorReadingId,
+                sr!.SensorReadingId,
                 sr.SensorId,
                 sr.CanalId,
-                sr.Canal.CanalName,
-                sr.Sensor.SensorType,
-                sr.Sensor.SensorCode,
+                CanalName = sr.Canal != null ? sr.Canal.CanalName : "Unknown",
+                SensorType = sr.Sensor != null ? sr.Sensor.SensorType : "Unknown",
+                SensorCode = sr.Sensor != null ? sr.Sensor.SensorCode : "Unknown",
                 sr.WaterLevel,
                 sr.FlowRate,
                 sr.DebrisLevel,

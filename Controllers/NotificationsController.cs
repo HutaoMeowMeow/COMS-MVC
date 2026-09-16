@@ -19,12 +19,15 @@ namespace COMS_MVC.Controllers
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            if (!User.Identity?.IsAuthenticated == true)
+            if (User.Identity?.IsAuthenticated != true)
             {
                 return RedirectToAction("Login", "Account");
             }
 
-            var userId = int.Parse(_userManager.GetUserId(User)!);
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return RedirectToAction("Login", "Account");
+            }
             var notifications = await _notificationService.GetAllAsync(userId);
             return View(notifications);
         }
@@ -48,8 +51,20 @@ namespace COMS_MVC.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAsRead(int id)
         {
-            var userId = int.Parse(_userManager.GetUserId(User)!);
-            await _notificationService.MarkAsReadAsync(id, userId);
+            if (id <= 0)
+            {
+                TempData["ErrorMessage"] = "Invalid notification.";
+                return RedirectToAction(nameof(Index));
+            }
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return RedirectToAction("Login", "Account");
+            }
+            var ok = await _notificationService.MarkAsReadAsync(id, userId);
+            if (!ok)
+            {
+                TempData["ErrorMessage"] = "Notification not found.";
+            }
             return RedirectToAction(nameof(Index));
         }
 
@@ -57,16 +72,26 @@ namespace COMS_MVC.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAllAsRead()
         {
-            var userId = int.Parse(_userManager.GetUserId(User)!);
-            var notifications = await _context.Notifications
-                .Where(n => n.UserId == userId && !n.IsRead)
-                .ToListAsync();
-
-            foreach (var notification in notifications)
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
             {
-                notification.IsRead = true;
+                return RedirectToAction("Login", "Account");
             }
-            await _context.SaveChangesAsync();
+            try
+            {
+                var notifications = await _context.Notifications
+                    .Where(n => n.UserId == userId && !n.IsRead)
+                    .ToListAsync();
+
+                foreach (var notification in notifications)
+                {
+                    notification.IsRead = true;
+                }
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "Could not update notifications. Please try again.";
+            }
 
             return RedirectToAction(nameof(Index));
         }
@@ -79,7 +104,10 @@ namespace COMS_MVC.Controllers
                 return Json(new { count = 0 });
             }
 
-            var userId = int.Parse(_userManager.GetUserId(User)!);
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return Json(new { count = 0 });
+            }
             var count = await _notificationService.GetUnreadCountAsync(userId);
             return Json(new { count });
         }

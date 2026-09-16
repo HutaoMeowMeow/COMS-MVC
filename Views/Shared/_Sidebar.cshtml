@@ -2,11 +2,11 @@
 
 <aside class="sidebar d-flex flex-column vh-100 position-fixed top-0 start-0">
     <div class="sidebar-header p-3 border-bottom">
-        <a class="navbar-brand text-white text-decoration-none" asp-controller="Dashboard" asp-action="Index">
-            <i class="bi bi-waterways me-2"></i>
+        <a class="navbar-brand text-white text-decoration-none d-flex align-items-center" asp-controller="Dashboard" asp-action="Index">
+            <img src="~/images/COMS-LOGO-transparent.png" alt="COMS logo" style="height: 36px; width: auto;" class="me-2" asp-append-version="true" />
             <span class="fs-5 fw-bold">COMS</span>
         </a>
-        <small class="text-white-50 d-block mt-1">Canal Obstruction Monitoring</small>
+        <small class="text-white-50 d-block mt-1">Canal Obstruction Maintenance</small>
     </div>
 
     <nav class="sidebar-nav flex-fill overflow-y-auto">
@@ -204,11 +204,6 @@
                 <li class="nav-item">
                     <a class="nav-link text-white sidebar-nav-item" asp-controller="Dashboard" asp-action="Resident">
                         <i class="bi bi-speedometer2 me-2"></i>Dashboard
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white sidebar-nav-item" asp-controller="Canals" asp-action="Index">
-                        <i class="bi bi-water me-2"></i>Canals
                     </a>
                 </li>
                 <li class="nav-item">

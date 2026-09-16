@@ -241,7 +241,13 @@
         document.addEventListener('DOMContentLoaded', function () {
             var lat = @Model.Latitude;
             var lng = @Model.Longitude;
-            var map = L.map('canalMap').setView([lat, lng], 15);
+            var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
+            var map = L.map('canalMap', {
+                maxBounds: cebuBounds,
+                maxBoundsViscosity: 1.0,
+                minZoom: 9,
+                maxZoom: 18
+            }).setView([lat, lng], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);

@@ -126,39 +126,88 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
+            model.FullName = (model.FullName ?? string.Empty).Trim();
+            model.Email = (model.Email ?? string.Empty).Trim();
+            model.PhoneNumber = string.IsNullOrWhiteSpace(model.PhoneNumber) ? null : model.PhoneNumber.Trim();
+            model.Barangay = string.IsNullOrWhiteSpace(model.Barangay) ? null : model.Barangay.Trim();
+            model.City = string.IsNullOrWhiteSpace(model.City) ? null : model.City.Trim();
+            model.Address = string.IsNullOrWhiteSpace(model.Address) ? null : model.Address.Trim();
+            model.SelectedRoles ??= new List<string>();
+            model.SelectedRoles = model.SelectedRoles.Where(r => AllRoles.Contains(r)).Distinct().ToList();
+            if (model.SelectedRoles.Count == 0)
+            {
+                ModelState.AddModelError(nameof(model.SelectedRoles), "Please select at least one valid role.");
+            }
+            var isOwnAccount = user.UserName == User?.Identity?.Name;
+            if (isOwnAccount && !model.SelectedRoles.Contains("Admin") && (await _userManager.GetRolesAsync(user)).Contains("Admin"))
+            {
+                ModelState.AddModelError(nameof(model.SelectedRoles), "You cannot remove the Admin role from your own account.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                ViewBag.IsOwnAccount = isOwnAccount;
+                return View(model);
+            }
+
+            var emailOwner = await _userManager.FindByEmailAsync(model.Email);
+            if (emailOwner != null && emailOwner.Id != user.Id)
+            {
+                ModelState.AddModelError(nameof(model.Email), "This email is already registered to another account.");
+                ViewBag.IsOwnAccount = isOwnAccount;
+                return View(model);
+            }
+
             user.FullName = model.FullName;
             user.Email = model.Email;
+            user.UserName = user.UserName;
             user.PhoneNumber = model.PhoneNumber;
             user.Barangay = model.Barangay;
             user.City = model.City;
             user.Address = model.Address;
 
-            var result = await _userManager.UpdateAsync(user);
+            IdentityResult result;
+            try
+            {
+                result = await _userManager.UpdateAsync(user);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "Could not save the user. Please try again.");
+                ViewBag.IsOwnAccount = isOwnAccount;
+                return View(model);
+            }
             if (!result.Succeeded)
             {
                 foreach (var error in result.Errors)
                 {
                     ModelState.AddModelError(string.Empty, error.Description);
                 }
-                ViewBag.IsOwnAccount = user.UserName == User?.Identity?.Name;
+                ViewBag.IsOwnAccount = isOwnAccount;
                 return View(model);
             }
 
-            var currentRoles = await _userManager.GetRolesAsync(user);
-            if (model.SelectedRoles == null)
-                model.SelectedRoles = new List<string>();
-
-            var rolesToRemove = currentRoles.Except(model.SelectedRoles).ToList();
-            var rolesToAdd = model.SelectedRoles.Except(currentRoles).ToList();
-
-            if (rolesToRemove.Any())
+            try
             {
-                await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+                var currentRoles = await _userManager.GetRolesAsync(user);
+
+                var rolesToRemove = currentRoles.Except(model.SelectedRoles).ToList();
+                var rolesToAdd = model.SelectedRoles.Except(currentRoles).ToList();
+
+                if (rolesToRemove.Any())
+                {
+                    await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+                }
+
+                if (rolesToAdd.Any())
+                {
+                    await _userManager.AddToRolesAsync(user, rolesToAdd);
+                }
             }
-
-            if (rolesToAdd.Any())
+            catch (Exception)
             {
-                await _userManager.AddToRolesAsync(user, rolesToAdd);
+                TempData["ErrorMessage"] = "User details saved, but roles could not be fully updated. Please review the roles.";
+                return RedirectToAction(nameof(Details), new { id = user.Id });
             }
 
             TempData["SuccessMessage"] = "User updated successfully.";
@@ -263,8 +312,17 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
-            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var result = await _userManager.ResetPasswordAsync(user, token, model.NewPassword);
+            IdentityResult result;
+            try
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                result = await _userManager.ResetPasswordAsync(user, token, model.NewPassword);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "Could not reset the password. Please try again.");
+                return View(model);
+            }
 
             if (result.Succeeded)
             {
@@ -310,21 +368,28 @@ namespace COMS_MVC.Controllers
     {
         public int Id { get; set; }
 
-        public string UserName { get; set; }
+        public string UserName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Full name is required")]
-        public string FullName { get; set; }
+        [StringLength(100, ErrorMessage = "Full name cannot exceed 100 characters")]
+        public string FullName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email is required")]
         [EmailAddress(ErrorMessage = "Invalid email format")]
-        public string Email { get; set; }
+        [StringLength(256, ErrorMessage = "Email cannot exceed 256 characters")]
+        public string Email { get; set; } = string.Empty;
 
+        [Phone(ErrorMessage = "Invalid phone number format")]
+        [StringLength(30, ErrorMessage = "Phone number cannot exceed 30 characters")]
         public string? PhoneNumber { get; set; }
 
+        [StringLength(100, ErrorMessage = "Barangay cannot exceed 100 characters")]
         public string? Barangay { get; set; }
 
+        [StringLength(100, ErrorMessage = "City cannot exceed 100 characters")]
         public string? City { get; set; }
 
+        [StringLength(250, ErrorMessage = "Address cannot exceed 250 characters")]
         public string? Address { get; set; }
 
         public DateTime CreatedAt { get; set; }

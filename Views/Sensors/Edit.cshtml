@@ -45,15 +45,26 @@
                     <select asp-for="Status" class="form-select" asp-items="(SelectList)ViewBag.StatusList"></select>
                     <span asp-validation-for="Status" class="text-danger small"></span>
                 </div>
-                <div class="col-md-6">
-                    <label asp-for="Latitude" class="form-label"></label>
-                    <input asp-for="Latitude" class="form-control" step="0.0001" />
+                <div class="col-12">
+                    <label class="form-label"><i class="bi bi-geo-alt me-1"></i>Sensor Location (Cebu only)</label>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-muted">Click the map or drag the pin — defaults to the selected canal</span>
+                        <button type="button" id="locateMeBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-crosshair me-1"></i>Use my location
+                        </button>
+                    </div>
+                    <div id="sensorPickerMap" style="height: 350px;" class="rounded border"></div>
                     <span asp-validation-for="Latitude" class="text-danger small"></span>
-                </div>
-                <div class="col-md-6">
-                    <label asp-for="Longitude" class="form-label"></label>
-                    <input asp-for="Longitude" class="form-control" step="0.0001" />
-                    <span asp-validation-for="Longitude" class="text-danger small"></span>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-6">
+                            <label asp-for="Latitude" class="form-label small"></label>
+                            <input asp-for="Latitude" class="form-control" type="number" step="0.000001" readonly />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Longitude" class="form-label small"></label>
+                            <input asp-for="Longitude" class="form-control" type="number" step="0.000001" readonly />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -67,4 +78,100 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var latInput = document.getElementById('Latitude');
+            var lngInput = document.getElementById('Longitude');
+            // Cebu province bounds: lat 9.30-11.45, lng 123.20-124.60. Center: Cebu City.
+            var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
+            var cebuCenter = [10.3157, 123.8854];
+            var defaultLat = parseFloat(latInput.value) || cebuCenter[0];
+            var defaultLng = parseFloat(lngInput.value) || cebuCenter[1];
+            if (!cebuBounds.contains([defaultLat, defaultLng])) {
+                defaultLat = cebuCenter[0];
+                defaultLng = cebuCenter[1];
+            }
+
+            var map = L.map('sensorPickerMap', {
+                maxBounds: cebuBounds,
+                maxBoundsViscosity: 1.0,
+                minZoom: 9,
+                maxZoom: 18
+            }).setView([defaultLat, defaultLng], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            var marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+
+            function inCebu(lat, lng) {
+                return lat >= 9.30 && lat <= 11.45 && lng >= 123.20 && lng <= 124.60;
+            }
+
+            function syncInputs(lat, lng) {
+                latInput.value = lat.toFixed(6);
+                lngInput.value = lng.toFixed(6);
+            }
+
+            marker.on('dragend', function () {
+                var pos = marker.getLatLng();
+                if (!inCebu(pos.lat, pos.lng)) {
+                    marker.setLatLng(cebuCenter);
+                    alert('Please pick a location inside Cebu.');
+                    return;
+                }
+                syncInputs(pos.lat, pos.lng);
+                map.panTo(pos);
+            });
+
+            map.on('click', function (e) {
+                if (!inCebu(e.latlng.lat, e.latlng.lng)) {
+                    alert('That point is outside Cebu. Please pick a location inside Cebu.');
+                    return;
+                }
+                marker.setLatLng(e.latlng);
+                syncInputs(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Jump the pin to the selected canal when it is in Cebu.
+            var canalCoords = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.CanalCoords ?? new Dictionary<int, object>()));
+            var canalSelect = document.getElementById('CanalId');
+            if (canalSelect) {
+                canalSelect.addEventListener('change', function () {
+                    var entry = canalCoords[canalSelect.value];
+                    if (entry) {
+                        var lat = parseFloat(entry.lat);
+                        var lng = parseFloat(entry.lng);
+                        if (!isNaN(lat) && !isNaN(lng) && inCebu(lat, lng)) {
+                            marker.setLatLng([lat, lng]);
+                            map.setView([lat, lng], 14);
+                            syncInputs(lat, lng);
+                        }
+                    }
+                });
+            }
+
+            var locateBtn = document.getElementById('locateMeBtn');
+            if (locateBtn && navigator.geolocation) {
+                locateBtn.addEventListener('click', function () {
+                    navigator.geolocation.getCurrentPosition(function (pos) {
+                        if (!inCebu(pos.coords.latitude, pos.coords.longitude)) {
+                            alert('Your current location is outside Cebu. Please drag the pin to the site in Cebu.');
+                            return;
+                        }
+                        var latlng = [pos.coords.latitude, pos.coords.longitude];
+                        marker.setLatLng(latlng);
+                        map.setView(latlng, 15);
+                        syncInputs(pos.coords.latitude, pos.coords.longitude);
+                    });
+                });
+            } else if (locateBtn) {
+                locateBtn.disabled = true;
+            }
+
+            setTimeout(function () { map.invalidateSize(); }, 200);
+        });
+    </script>
 }

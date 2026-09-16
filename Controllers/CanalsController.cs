@@ -16,6 +16,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Index()
         {
             var query = _context.Canals
@@ -38,6 +39,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Details(int id)
         {
             var canal = await _context.Canals
@@ -76,13 +78,28 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create(Canal canal)
         {
+            NormalizeCanalInput(canal);
+            ValidateCebuLocation(canal);
+            ValidateWaterLevels(canal);
+
             if (ModelState.IsValid)
             {
-                canal.CreatedAt = DateTime.UtcNow;
-                _context.Canals.Add(canal);
-                await _context.SaveChangesAsync();
-                TempData["SuccessMessage"] = $"Canal '{canal.CanalName}' created successfully.";
-                return RedirectToAction(nameof(Index));
+                try
+                {
+                    canal.CreatedAt = DateTime.UtcNow;
+                    _context.Canals.Add(canal);
+                    await _context.SaveChangesAsync();
+                    TempData["SuccessMessage"] = $"Canal '{canal.CanalName}' created successfully.";
+                    return RedirectToAction(nameof(Index));
+                }
+                catch (DbUpdateException)
+                {
+                    ModelState.AddModelError(string.Empty, "Could not save the canal. Please check your input and try again.");
+                }
+                catch (Exception)
+                {
+                    ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the canal. Please try again.");
+                }
             }
 
             await PopulateStatusDropDown();
@@ -113,13 +130,24 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
+            NormalizeCanalInput(canal);
+            ValidateCebuLocation(canal);
+            ValidateWaterLevels(canal);
+
             if (ModelState.IsValid)
             {
                 try
                 {
+                    var existing = await _context.Canals.AsNoTracking().FirstOrDefaultAsync(c => c.CanalId == id);
+                    if (existing == null)
+                    {
+                        return NotFound();
+                    }
+                    canal.CreatedAt = existing.CreatedAt;
                     _context.Update(canal);
                     await _context.SaveChangesAsync();
                     TempData["SuccessMessage"] = $"Canal '{canal.CanalName}' updated successfully.";
+                    return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateConcurrencyException)
                 {
@@ -129,7 +157,14 @@ namespace COMS_MVC.Controllers
                     }
                     ModelState.AddModelError(string.Empty, "The canal was modified by another user. Please refresh and try again.");
                 }
-                return RedirectToAction(nameof(Index));
+                catch (DbUpdateException)
+                {
+                    ModelState.AddModelError(string.Empty, "Could not save the canal. Please check your input and try again.");
+                }
+                catch (Exception)
+                {
+                    ModelState.AddModelError(string.Empty, "An unexpected error occurred while saving the canal. Please try again.");
+                }
             }
 
             await PopulateStatusDropDown();
@@ -163,10 +198,57 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
-            _context.Canals.Remove(canal);
-            await _context.SaveChangesAsync();
-            TempData["SuccessMessage"] = $"Canal '{canal.CanalName}' deleted successfully.";
+            try
+            {
+                _context.Canals.Remove(canal);
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = $"Canal '{canal.CanalName}' deleted successfully.";
+            }
+            catch (DbUpdateException)
+            {
+                TempData["ErrorMessage"] = $"Cannot delete '{canal.CanalName}' because it still has sensors, readings, alerts, or reports. Remove or reassign them first.";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "An unexpected error occurred while deleting the canal. Please try again.";
+            }
             return RedirectToAction(nameof(Index));
+        }
+
+        private void NormalizeCanalInput(Canal canal)
+        {
+            canal.CanalName = (canal.CanalName ?? string.Empty).Trim();
+            canal.Location = (canal.Location ?? string.Empty).Trim();
+            canal.Barangay = (canal.Barangay ?? string.Empty).Trim();
+            canal.City = (canal.City ?? string.Empty).Trim();
+            canal.Status = string.IsNullOrWhiteSpace(canal.Status) ? "Normal" : canal.Status.Trim();
+        }
+
+        private void ValidateCebuLocation(Canal canal)
+        {
+            // System coverage is Cebu province only.
+            if (canal.Latitude < 9.30 || canal.Latitude > 11.45)
+            {
+                ModelState.AddModelError(nameof(canal.Latitude), "Latitude must be inside Cebu (9.30 to 11.45).");
+            }
+            if (canal.Longitude < 123.20 || canal.Longitude > 124.60)
+            {
+                ModelState.AddModelError(nameof(canal.Longitude), "Longitude must be inside Cebu (123.20 to 124.60).");
+            }
+        }
+
+        private void ValidateWaterLevels(Canal canal)
+        {
+            if (canal.WarningWaterLevel > 0 && canal.NormalWaterLevel > 0
+                && canal.WarningWaterLevel <= canal.NormalWaterLevel)
+            {
+                ModelState.AddModelError(nameof(canal.WarningWaterLevel), "Warning level must be greater than normal level.");
+            }
+            if (canal.CriticalWaterLevel > 0 && canal.WarningWaterLevel > 0
+                && canal.CriticalWaterLevel <= canal.WarningWaterLevel)
+            {
+                ModelState.AddModelError(nameof(canal.CriticalWaterLevel), "Critical level must be greater than warning level.");
+            }
         }
 
         private async Task PopulateStatusDropDown()
@@ -187,6 +269,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Map()
         {
             var canals = await _context.Canals

@@ -205,14 +205,12 @@ namespace COMS_MVC.Services
                 .OrderByDescending(a => a.AssessmentDate)
                 .FirstOrDefaultAsync();
 
-            var assessment = existingValid ?? await CalculateRiskAsync(canal);
-
             if (existingValid != null)
             {
-                assessment = await CalculateRiskAsync(canal);
+                return existingValid;
             }
 
-            return assessment;
+            return await CalculateRiskAsync(canal);
         }
     }
 }

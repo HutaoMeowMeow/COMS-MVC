@@ -38,8 +38,10 @@ namespace COMS_MVC.Controllers
 
             if (User.IsInRole("Maintenance"))
             {
-                var userId = int.Parse(_userManager.GetUserId(User)!);
-                query = query.Where(a => a.AssignedToUserId == userId || a.Status == "Active");
+                if (int.TryParse(_userManager.GetUserId(User), out var userId))
+                {
+                    query = query.Where(a => a.AssignedToUserId == userId || a.Status == "Active");
+                }
             }
 
             if (User.IsInRole("Resident"))
@@ -103,19 +105,36 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,Maintenance")]
         public async Task<IActionResult> Assign(int id, int assigneeId)
         {
+            if (id <= 0 || assigneeId <= 0)
+            {
+                TempData["ErrorMessage"] = "Please select a valid user to assign.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
             var alert = await _context.ObstructionAlerts.FindAsync(id);
             if (alert == null)
             {
                 return NotFound();
             }
 
-            alert.AssignedToUserId = assigneeId;
-            alert.Status = "In Progress";
-            await _context.SaveChangesAsync();
-
             var assignee = await _userManager.FindByIdAsync(assigneeId.ToString());
-            var assigneeName = assignee?.UserName ?? "the selected user";
-            TempData["SuccessMessage"] = $"Alert assigned to {assigneeName}.";
+            if (assignee == null)
+            {
+                TempData["ErrorMessage"] = "Selected user does not exist.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            try
+            {
+                alert.AssignedToUserId = assigneeId;
+                alert.Status = "In Progress";
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = $"Alert assigned to {assignee.FullName ?? assignee.UserName}.";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "Could not assign the alert. Please try again.";
+            }
 
             return RedirectToAction(nameof(Details), new { id });
         }
@@ -125,7 +144,22 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> UpdateStatus(int id, string status, string? notes)
         {
-            var userId = int.Parse(_userManager.GetUserId(User)!);
+            var allowed = new[] { "Active", "Acknowledged", "In Progress", "Resolved", "Dismissed" };
+            if (id <= 0 || string.IsNullOrWhiteSpace(status) || !allowed.Contains(status))
+            {
+                TempData["ErrorMessage"] = "Invalid status selected.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            if (notes != null && notes.Length > 2000)
+            {
+                TempData["ErrorMessage"] = "Notes cannot exceed 2000 characters.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                TempData["ErrorMessage"] = "Your session is invalid. Please sign in again.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
             var result = await _alertService.UpdateStatusAsync(id, status, userId, notes);
 
             if (result)

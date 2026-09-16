@@ -34,7 +34,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Details(int canalId)
+        public async Task<IActionResult> Details(int canalId = 0)
         {
             var canal = await _context.Canals.FindAsync(canalId);
             if (canal == null)
@@ -63,15 +63,26 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Assess(int canalId)
         {
+            if (canalId <= 0)
+            {
+                return NotFound();
+            }
             var canal = await _context.Canals.FindAsync(canalId);
             if (canal == null)
             {
                 return NotFound();
             }
 
-            var assessment = await _floodRiskService.CalculateRiskAsync(canal);
+            try
+            {
+                var assessment = await _floodRiskService.CalculateRiskAsync(canal);
 
-            TempData["SuccessMessage"] = $"Risk assessment generated for '{canal.CanalName}'. Score: {assessment.RiskScore}/100 ({assessment.RiskLevel})";
+                TempData["SuccessMessage"] = $"Risk assessment generated for '{canal.CanalName}'. Score: {assessment.RiskScore}/100 ({assessment.RiskLevel})";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "Could not generate the risk assessment. Please try again.";
+            }
             return RedirectToAction(nameof(Details), new { canalId });
         }
 
@@ -79,13 +90,27 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,LGU")]
         public async Task<IActionResult> AssessAll()
         {
-            var canals = await _context.Canals.ToListAsync();
-            foreach (var canal in canals)
+            try
             {
-                await _floodRiskService.CalculateRiskAsync(canal);
-            }
+                var canals = await _context.Canals.ToListAsync();
+                foreach (var canal in canals)
+                {
+                    try
+                    {
+                        await _floodRiskService.CalculateRiskAsync(canal);
+                    }
+                    catch
+                    {
+                        // Continue with remaining canals; one failure should not block the batch.
+                    }
+                }
 
-            TempData["SuccessMessage"] = $"Risk assessments generated for {canals.Count} canal(s).";
+                TempData["SuccessMessage"] = $"Risk assessments generated for {canals.Count} canal(s).";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "Could not generate risk assessments. Please try again.";
+            }
             return RedirectToAction(nameof(Index));
         }
 

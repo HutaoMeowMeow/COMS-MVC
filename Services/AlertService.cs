@@ -226,6 +226,10 @@ namespace COMS_MVC.Services
 
         public async Task<bool> UpdateStatusAsync(int alertId, string status, int userId, string? notes = null)
         {
+            var allowed = new[] { "Active", "Acknowledged", "In Progress", "Resolved", "Dismissed" };
+            if (alertId <= 0 || string.IsNullOrWhiteSpace(status) || !allowed.Contains(status))
+                return false;
+
             var alert = await _context.ObstructionAlerts.FindAsync(alertId);
             if (alert == null)
                 return false;

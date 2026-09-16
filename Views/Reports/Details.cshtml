@@ -43,6 +43,13 @@
                             <th class="text-muted small">Location</th>
                             <td>@(Model.Location ?? "Not specified")</td>
                         </tr>
+                        @if (Model.Latitude != null && Model.Longitude != null)
+                        {
+                            <tr>
+                                <th class="text-muted small">Pinned Location</th>
+                                <td>@Model.Latitude.Value.ToString("F6"), @Model.Longitude.Value.ToString("F6") (Cebu)</td>
+                            </tr>
+                        }
                         <tr>
                             <th class="text-muted small">Submitted By</th>
                             <td>@Model.User?.FullName (@Model.User?.UserName)</td>
@@ -74,6 +81,14 @@
                         <div>
                             <img src="@Model.PhotoPath" class="img-fluid rounded border" style="max-height: 300px;" />
                         </div>
+                    </div>
+                }
+
+                @if (Model.Latitude != null && Model.Longitude != null)
+                {
+                    <div class="mt-3">
+                        <label class="form-label fw-medium"><i class="bi bi-geo-alt me-1"></i>Pinned Location (Cebu)</label>
+                        <div id="reportMap" style="height: 250px;" class="rounded border"></div>
                     </div>
                 }
             </div>
@@ -128,3 +143,30 @@
         }
     </div>
 </div>
+
+@section Scripts {
+    @if (Model.Latitude != null && Model.Longitude != null)
+    {
+        <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var lat = @Model.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var lng = @Model.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
+                var map = L.map('reportMap', {
+                    maxBounds: cebuBounds,
+                    maxBoundsViscosity: 1.0,
+                    minZoom: 9,
+                    maxZoom: 18
+                }).setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                L.marker([lat, lng]).addTo(map)
+                    .bindPopup('<b>Reported location</b>')
+                    .openPopup();
+            });
+        </script>
+    }
+}

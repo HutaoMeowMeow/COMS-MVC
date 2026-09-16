@@ -28,6 +28,14 @@ namespace COMS_MVC.Models
         [Display(Name = "Location")]
         public string? Location { get; set; }
 
+        [Display(Name = "Latitude")]
+        [Range(-90, 90, ErrorMessage = "Latitude must be between -90 and 90")]
+        public double? Latitude { get; set; }
+
+        [Display(Name = "Longitude")]
+        [Range(-180, 180, ErrorMessage = "Longitude must be between -180 and 180")]
+        public double? Longitude { get; set; }
+
         [Display(Name = "Status")]
         public string Status { get; set; } = "Pending";
 

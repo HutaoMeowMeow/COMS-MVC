@@ -3,50 +3,195 @@
     ViewData["Title"] = "Login";
 }
 
-<div class="d-flex align-items-center justify-content-center min-vh-100 bg-light">
+@section Styles {
+<style>
+    .auth-page {
+        min-height: 100vh;
+        margin: -1.5rem;
+        padding: 2rem 1rem;
+        background:
+            radial-gradient(1000px 500px at 10% 10%, rgba(49,130,206,.35), transparent 60%),
+            radial-gradient(800px 500px at 90% 90%, rgba(30,58,95,.5), transparent 60%),
+            linear-gradient(135deg, #102a43 0%, #1e3a5f 45%, #2c5282 100%);
+        display: flex;
+        align-items: center;
+    }
+    .auth-card {
+        border: 0;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        box-shadow: 0 25px 60px rgba(0,0,0,.35);
+    }
+    .auth-brand {
+        background: linear-gradient(160deg, rgba(16,42,67,.96) 0%, rgba(30,58,95,.94) 55%, rgba(44,82,130,.92) 100%);
+        color: #fff;
+        position: relative;
+    }
+    .auth-brand::after {
+        content: "";
+        position: absolute;
+        inset: auto -60px -60px auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99,179,237,.35) 0%, transparent 70%);
+    }
+    .auth-brand .brand-badge {
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.2);
+        color: #e2e8f0;
+    }
+    .auth-feature {
+        background: rgba(255,255,255,.08);
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: .75rem;
+    }
+    .auth-feature i {
+        color: #90cdf4;
+    }
+    .auth-form .form-control {
+        border-radius: .65rem;
+        padding: .7rem .9rem;
+    }
+    .auth-form .input-group .form-control {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+    .auth-form .input-group .btn {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+    .auth-submit {
+        border-radius: .65rem;
+        padding: .7rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, #2b6cb0 0%, #3182ce 100%);
+        border: 0;
+        box-shadow: 0 8px 20px rgba(49,130,206,.4);
+    }
+    .auth-submit:hover {
+        filter: brightness(1.08);
+    }
+    .auth-logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #3182ce, #63b3ed);
+        box-shadow: 0 10px 25px rgba(49,130,206,.45);
+    }
+</style>
+}
+
+<div class="auth-page">
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-5 col-lg-4">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <i class="bi bi-waterways display-4 text-primary"></i>
-                            <h2 class="mt-3 mb-1">COMS</h2>
-                            <p class="text-muted small">Canal Obstruction Monitoring System</p>
+            <div class="col-12 col-lg-10 col-xl-9">
+                <div class="card auth-card">
+                    <div class="row g-0">
+                        <!-- Brand panel -->
+                        <div class="col-md-6 auth-brand p-4 p-lg-5 d-none d-md-flex flex-column justify-content-center">
+                            <div>
+                                <span class="badge brand-badge rounded-pill px-3 py-2 mb-3">
+                                    <i class="bi bi-geo-alt-fill me-1"></i>Cebu Province Coverage
+                                </span>
+                                <div class="d-flex align-items-center gap-3 mb-3">
+                                    <img src="~/images/COMS-LOGO-transparent.png" alt="COMS logo" style="height: 56px; width: auto;" asp-append-version="true" />
+                                    <div>
+                                        <h2 class="mb-0 fw-bold">COMS</h2>
+                                        <small class="text-white-50">Canal Obstruction Maintenance System</small>
+                                    </div>
+                                </div>
+                                <p class="text-white-50 small mb-4">
+                                    Real-time canal water-level monitoring, obstruction alerts,
+                                    and flood-risk assessment for Cebu communities.
+                                </p>
+                                <div class="d-flex flex-column gap-2">
+                                    <div class="auth-feature d-flex align-items-center gap-3 p-3">
+                                        <i class="bi bi-activity fs-4"></i>
+                                        <div>
+                                            <div class="fw-semibold small">Live sensor monitoring</div>
+                                            <small class="text-white-50">Water level, flow, debris &amp; turbidity</small>
+                                        </div>
+                                    </div>
+                                    <div class="auth-feature d-flex align-items-center gap-3 p-3">
+                                        <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                                        <div>
+                                            <div class="fw-semibold small">Instant obstruction alerts</div>
+                                            <small class="text-white-50">Severity-ranked, assigned &amp; tracked</small>
+                                        </div>
+                                    </div>
+                                    <div class="auth-feature d-flex align-items-center gap-3 p-3">
+                                        <i class="bi bi-megaphone-fill fs-4"></i>
+                                        <div>
+                                            <div class="fw-semibold small">Community reporting</div>
+                                            <small class="text-white-50">Residents report issues with photos &amp; map pins</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <form asp-action="Login" method="post">
-                            @Html.AntiForgeryToken()
-                            @Html.ValidationSummary(true, "", new { @class = "text-danger small mb-3" })
-                            <div class="mb-3">
-                                <label asp-for="Username" class="form-label"></label>
-                                <input asp-for="Username" class="form-control" placeholder="Username or Email" />
-                                <span asp-validation-for="Username" class="text-danger small"></span>
+                        <!-- Form panel -->
+                        <div class="col-12 col-md-6 bg-white p-4 p-lg-5 auth-form">
+                            <div class="text-center text-md-start mb-4">
+                                <div class="d-md-none mb-3 text-center">
+                                    <img src="~/images/COMS-LOGO.png" alt="COMS logo" style="height: 52px; width: auto;" asp-append-version="true" />
+                                    <h3 class="mt-2 mb-0 fw-bold">COMS</h3>
+                                    <small class="text-muted">Canal Obstruction Maintenance System</small>
+                                </div>
+                                <h3 class="fw-bold mb-1">Welcome back</h3>
+                                <p class="text-muted small mb-0">Sign in to your monitoring dashboard</p>
                             </div>
-                            <div class="mb-3">
-                                <label asp-for="Password" class="form-label"></label>
-                                <input asp-for="Password" class="form-control" type="password" placeholder="Password" />
-                                <span asp-validation-for="Password" class="text-danger small"></span>
-                            </div>
-                            <div class="mb-3 form-check">
-                                <input asp-for="RememberMe" class="form-check-input" />
-                                <label asp-for="RememberMe" class="form-check-label"></label>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100 py-2">
-                                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
-                            </button>
-                        </form>
 
-                        <div class="text-center mt-4 pt-3 border-top">
+                            <form asp-action="Login" asp-route-returnUrl="@ViewData["ReturnUrl"]" method="post">
+                                @Html.AntiForgeryToken()
+                                @Html.ValidationSummary(true, "", new { @class = "text-danger small mb-3" })
+                                <div class="mb-3">
+                                    <label asp-for="Username" class="form-label fw-semibold small"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                                        <input asp-for="Username" class="form-control" placeholder="Username or email" autocomplete="username" />
+                                    </div>
+                                    <span asp-validation-for="Username" class="text-danger small"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <label asp-for="Password" class="form-label fw-semibold small"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+                                        <input asp-for="Password" id="loginPassword" class="form-control" type="password" placeholder="Your password" autocomplete="current-password" />
+                                        <button type="button" class="btn btn-outline-secondary" id="togglePassword" title="Show / hide password">
+                                            <i class="bi bi-eye" id="togglePasswordIcon"></i>
+                                        </button>
+                                    </div>
+                                    <span asp-validation-for="Password" class="text-danger small"></span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <div class="form-check">
+                                        <input asp-for="RememberMe" class="form-check-input" />
+                                        <label asp-for="RememberMe" class="form-check-label small"></label>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary auth-submit w-100">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                                </button>
+                            </form>
 
-                            <p class="mb-1 mt-2">
-                                Don't have an account?
-                                <a asp-action="Register" class="text-decoration-none">Register here</a>
-                            </p>
-                            <small class="text-muted">Passwords are unique per account. See README.md for development credentials.</small>
+                            <div class="text-center mt-4 pt-3 border-top">
+                                <p class="mb-1 small">
+                                    Don&apos;t have an account?
+                                    <a asp-action="Register" class="text-decoration-none fw-semibold">Register here</a>
+                                </p>
+                                <small class="text-muted">Cebu-only monitoring prototype for LGU use.</small>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <p class="text-center text-white-50 small mt-3 mb-0">
+                    <i class="bi bi-shield-lock me-1"></i>Protected by role-based access — Admin, LGU, Barangay, Maintenance &amp; Resident
+                </p>
             </div>
         </div>
     </div>
@@ -54,4 +199,18 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var btn = document.getElementById('togglePassword');
+            var input = document.getElementById('loginPassword');
+            var icon = document.getElementById('togglePasswordIcon');
+            if (btn && input) {
+                btn.addEventListener('click', function () {
+                    var show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    if (icon) icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+                });
+            }
+        });
+    </script>
 }

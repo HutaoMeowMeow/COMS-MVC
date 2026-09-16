@@ -37,7 +37,12 @@ namespace COMS_MVC.Controllers
                 .Include(a => a.PostedBy)
                 .AsQueryable();
 
-            var userRoles = await _userManager.GetRolesAsync(await _userManager.GetUserAsync(User));
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null)
+            {
+                return Challenge();
+            }
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
             var isAdmin = userRoles.Contains("Admin");
             var isLGU = userRoles.Contains("LGU");
 
@@ -88,7 +93,12 @@ namespace COMS_MVC.Controllers
 
             if (!User.IsInRole("Admin") && !User.IsInRole("LGU"))
             {
-                var userRoles = await _userManager.GetRolesAsync(await _userManager.GetUserAsync(User));
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null)
+                {
+                    return Challenge();
+                }
+                var userRoles = await _userManager.GetRolesAsync(currentUser);
                 var primaryRole = userRoles.FirstOrDefault() ?? "All";
 
                 if (announcement.TargetAudience != "All" &&
@@ -115,52 +125,102 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,LGU")]
         public async Task<IActionResult> Create(Announcement announcement, IFormFile? imageFile)
         {
+            announcement.Title = (announcement.Title ?? string.Empty).Trim();
+            announcement.Content = (announcement.Content ?? string.Empty).Trim();
+            announcement.TargetAudience = string.IsNullOrWhiteSpace(announcement.TargetAudience) ? "All" : announcement.TargetAudience.Trim();
+            announcement.Location = string.IsNullOrWhiteSpace(announcement.Location) ? null : announcement.Location.Trim();
+
+            if (!Audiences.Any(a => a.Value == announcement.TargetAudience))
+            {
+                ModelState.AddModelError(nameof(announcement.TargetAudience), "Please select a valid audience.");
+            }
+            if (imageFile != null && imageFile.Length > 5 * 1024 * 1024)
+            {
+                ModelState.AddModelError("imageFile", "Image size must be less than 5MB.");
+            }
+            else if (imageFile != null && imageFile.Length > 0)
+            {
+                var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif" };
+                if (!allowedTypes.Contains(imageFile.ContentType))
+                {
+                    ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
                 return View(announcement);
             }
 
-            var userId = int.Parse(_userManager.GetUserId(User)!);
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return Challenge();
+            }
             announcement.PostedByUserId = userId;
             announcement.CreatedAt = DateTime.UtcNow;
 
             if (imageFile != null && imageFile.Length > 0)
             {
-                if (imageFile.Length > 5 * 1024 * 1024)
+                if (string.IsNullOrEmpty(_env.WebRootPath))
                 {
-                    ModelState.AddModelError("imageFile", "Image size must be less than 5MB.");
+                    ModelState.AddModelError("imageFile", "File uploads are not configured on this server.");
                     ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
                     return View(announcement);
                 }
-
-                var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif" };
-                if (!allowedTypes.Contains(imageFile.ContentType))
+                try
                 {
-                    ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                    var ext = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+                    if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".gif")
+                    {
+                        ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                        ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                        return View(announcement);
+                    }
+                    var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "announcements");
+                    Directory.CreateDirectory(uploadsFolder);
+
+                    var uniqueName = $"announce_{Guid.NewGuid():N}{ext}";
+                    var filePath = Path.Combine(uploadsFolder, uniqueName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await imageFile.CopyToAsync(stream);
+                    }
+                    announcement.ImagePath = $"/uploads/announcements/{uniqueName}";
+                }
+                catch (Exception)
+                {
+                    ModelState.AddModelError("imageFile", "Could not save the image. Please try again.");
                     ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
                     return View(announcement);
                 }
-
-                var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "announcements");
-                Directory.CreateDirectory(uploadsFolder);
-
-                var uniqueName = $"announce_{Guid.NewGuid():N}_{Path.GetFileName(imageFile.FileName)}";
-                var filePath = Path.Combine(uploadsFolder, uniqueName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await imageFile.CopyToAsync(stream);
-                }
-                announcement.ImagePath = $"/uploads/announcements/{uniqueName}";
             }
 
-            _context.Announcements.Add(announcement);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Announcements.Add(announcement);
+                await _context.SaveChangesAsync();
 
-            await CreateNotificationForAnnouncementAsync(announcement);
+                try { await CreateNotificationForAnnouncementAsync(announcement); } catch { }
 
-            TempData["SuccessMessage"] = "Announcement posted successfully.";
-            return RedirectToAction(nameof(Index));
+                TempData["SuccessMessage"] = "Announcement posted successfully.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception)
+            {
+                if (!string.IsNullOrEmpty(announcement.ImagePath) && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var saved = Path.Combine(_env.WebRootPath, announcement.ImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(saved)) System.IO.File.Delete(saved);
+                    }
+                    catch { }
+                }
+                ModelState.AddModelError(string.Empty, "Could not post the announcement. Please check your input and try again.");
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
         }
 
         [HttpGet]
@@ -187,6 +247,28 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
+            announcement.Title = (announcement.Title ?? string.Empty).Trim();
+            announcement.Content = (announcement.Content ?? string.Empty).Trim();
+            announcement.TargetAudience = string.IsNullOrWhiteSpace(announcement.TargetAudience) ? "All" : announcement.TargetAudience.Trim();
+            announcement.Location = string.IsNullOrWhiteSpace(announcement.Location) ? null : announcement.Location.Trim();
+
+            if (!Audiences.Any(a => a.Value == announcement.TargetAudience))
+            {
+                ModelState.AddModelError(nameof(announcement.TargetAudience), "Please select a valid audience.");
+            }
+            if (imageFile != null && imageFile.Length > 5 * 1024 * 1024)
+            {
+                ModelState.AddModelError("imageFile", "Image size must be less than 5MB.");
+            }
+            else if (imageFile != null && imageFile.Length > 0)
+            {
+                var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif" };
+                if (!allowedTypes.Contains(imageFile.ContentType))
+                {
+                    ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
@@ -199,29 +281,35 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
+            string? newImagePath = null;
             try
             {
                 if (imageFile != null && imageFile.Length > 0)
                 {
-                    if (existing.ImagePath != null)
+                    if (string.IsNullOrEmpty(_env.WebRootPath))
                     {
-                        var oldPath = Path.Combine(_env.WebRootPath, existing.ImagePath.TrimStart('/'));
-                        if (System.IO.File.Exists(oldPath))
-                        {
-                            System.IO.File.Delete(oldPath);
-                        }
+                        ModelState.AddModelError("imageFile", "File uploads are not configured on this server.");
+                        ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                        return View(announcement);
                     }
-
+                    var ext = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+                    if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".gif")
+                    {
+                        ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                        ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                        return View(announcement);
+                    }
                     var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "announcements");
                     Directory.CreateDirectory(uploadsFolder);
 
-                    var uniqueName = $"announce_{Guid.NewGuid():N}_{Path.GetFileName(imageFile.FileName)}";
+                    var uniqueName = $"announce_{Guid.NewGuid():N}{ext}";
                     var filePath = Path.Combine(uploadsFolder, uniqueName);
                     using (var stream = new FileStream(filePath, FileMode.Create))
                     {
                         await imageFile.CopyToAsync(stream);
                     }
-                    announcement.ImagePath = $"/uploads/announcements/{uniqueName}";
+                    newImagePath = $"/uploads/announcements/{uniqueName}";
+                    announcement.ImagePath = newImagePath;
                 }
                 else
                 {
@@ -233,11 +321,46 @@ namespace COMS_MVC.Controllers
 
                 _context.Update(announcement);
                 await _context.SaveChangesAsync();
+
+                if (newImagePath != null && !string.IsNullOrEmpty(existing.ImagePath) && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var oldPath = Path.Combine(_env.WebRootPath, existing.ImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
+                    }
+                    catch { }
+                }
+
                 TempData["SuccessMessage"] = "Announcement updated successfully.";
             }
             catch (DbUpdateConcurrencyException)
             {
+                if (newImagePath != null && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var saved = Path.Combine(_env.WebRootPath, newImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(saved)) System.IO.File.Delete(saved);
+                    }
+                    catch { }
+                }
                 ModelState.AddModelError(string.Empty, "The announcement was modified by another user. Please refresh and try again.");
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
+            catch (Exception)
+            {
+                if (newImagePath != null && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var saved = Path.Combine(_env.WebRootPath, newImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(saved)) System.IO.File.Delete(saved);
+                    }
+                    catch { }
+                }
+                ModelState.AddModelError(string.Empty, "Could not save the announcement. Please check your input and try again.");
                 ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
                 return View(announcement);
             }
@@ -272,18 +395,32 @@ namespace COMS_MVC.Controllers
                 return NotFound();
             }
 
-            if (!string.IsNullOrEmpty(announcement.ImagePath))
+            try
             {
-                var filePath = Path.Combine(_env.WebRootPath, announcement.ImagePath.TrimStart('/'));
-                if (System.IO.File.Exists(filePath))
+                if (!string.IsNullOrEmpty(announcement.ImagePath) && !string.IsNullOrEmpty(_env.WebRootPath))
                 {
-                    System.IO.File.Delete(filePath);
+                    try
+                    {
+                        var filePath = Path.Combine(_env.WebRootPath, announcement.ImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(filePath))
+                        {
+                            System.IO.File.Delete(filePath);
+                        }
+                    }
+                    catch
+                    {
+                        // File cleanup is best-effort.
+                    }
                 }
-            }
 
-            _context.Announcements.Remove(announcement);
-            await _context.SaveChangesAsync();
-            TempData["SuccessMessage"] = "Announcement deleted successfully.";
+                _context.Announcements.Remove(announcement);
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Announcement deleted successfully.";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "Could not delete the announcement. Please try again.";
+            }
             return RedirectToAction(nameof(Index));
         }
 

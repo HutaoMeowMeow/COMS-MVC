@@ -44,10 +44,10 @@
             }
 
             <div class="mb-3">
-                <label asp-for="ImagePath" class="form-label"></label>
-                <input asp-for="ImagePath" class="form-control" type="file" accept="image*" />
-                <input type="hidden" name="ImagePath" value="@Model.ImagePath" />
-                <div class="form-text">Upload a new image to replace the current one (optional)</div>
+                <label class="form-label" for="imageFile">Image</label>
+                <input id="imageFile" name="imageFile" class="form-control" type="file" accept="image/*" />
+                <span class="text-danger small field-validation-valid" data-valmsg-for="imageFile" data-valmsg-replace="true"></span>
+                <div class="form-text">Upload a new image to replace the current one (optional, max 5MB, JPG/PNG/GIF)</div>
             </div>
 
             <div class="mb-3">
