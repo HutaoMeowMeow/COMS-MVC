@@ -72,10 +72,12 @@ COMS-MVC/
 │   └── SensorSimulationService.cs# Background simulated readings (off by default)
 ├── Hubs/
 │   └── MonitoringHub.cs          # SignalR hub: user, role, canal groups
-├── Migrations/                   # EF Core PostgreSQL migrations
+├── Migrations/                   # EF Core PostgreSQL migrations (InitialCreate, AddValidationConstraints, AddReportCoordinates)
 ├── wwwroot/
+│   ├── images/COMS-LOGO.png      # System logo (transparent variant: COMS-LOGO-transparent.png)
 │   ├── uploads/announcements/    # Created at runtime — announcement images
 │   └── uploads/reports/          # Created at runtime — community report photos
+├── COMS-LOGO.png                 # Source logo file (project root, copied into wwwroot/images/)
 └── COMS MVC.slnx / COMS MVC.csproj
 ```
 
@@ -103,7 +105,7 @@ Master canal record.
 | ----- | ----- |
 | `CanalId` | PK |
 | `CanalName*`, `Location*`, `Barangay*`, `City*` | Required text |
-| `Latitude`, `Longitude` | Map position (Leaflet) |
+| `Latitude`, `Longitude` | Map position (Leaflet) — must be inside Cebu (lat 9.30–11.45, lng 123.20–124.60), enforced in `CanalsController` |
 | `Length`, `Width`, `Depth` | Dimensions (m) |
 | `NormalWaterLevel`, `WarningWaterLevel`, `CriticalWaterLevel` | Thresholds (m) |
 | `Status`, `CreatedAt` | Defaults to `Normal` |
@@ -118,7 +120,7 @@ Parent of: Sensors, SensorReadings, Alerts, CommunityReports, FloodRiskAssessmen
 | `SensorCode*` | Unique |
 | `SensorType` | e.g. WaterLevel / Flow |
 | `CanalId` | FK → Canals |
-| `Latitude`, `Longitude` | Sensor position |
+| `Latitude`, `Longitude` | Sensor position — must be inside Cebu, enforced in `SensorsController.ValidateSensorAsync` |
 | `Status` | Defaults to `Online` |
 | `LastReading`, `LastCommunication` | Timestamps |
 
@@ -167,7 +169,8 @@ Resident-submitted concern with optional photo.
 | `CanalId` | FK → Canals |
 | `ReportType`, `Title*`, `Description` | Content |
 | `PhotoPath` | e.g. `/uploads/reports/abc.jpg` |
-| `Location` | Free text |
+| `Location` | Landmark / street detail (free text) |
+| `Latitude?`, `Longitude?` | Map pin from resident picker — must be inside Cebu (added via `AddReportCoordinates` migration) |
 | `Status` | Pending / Under Review / Resolved |
 | `CreatedAt`, `UpdatedAt` | Timestamps |
 
@@ -255,14 +258,14 @@ Base: `/Canals` — Views in `Views/Canals/`.
 
 | Action | URL Example | Access |
 | ------ | ----------- | ------ |
-| Index | `/Canals` | Logged in |
-| Details | `/Canals/Details/5` | Logged in |
-| Map | `/Canals/Map` | Logged in |
+| Index | `/Canals` | Admin, LGU, Barangay, Maintenance (Residents excluded) |
+| Details | `/Canals/Details/5` | Admin, LGU, Barangay, Maintenance |
+| Map | `/Canals/Map` | Admin, LGU, Barangay, Maintenance |
 | Create | `/Canals/Create` | Admin only |
 | Edit | `/Canals/Edit/5` | Admin only |
 | Delete | `/Canals/Delete/5` | Admin only |
 
-Map uses Leaflet + OpenStreetMap (`Views/Canals/Map.cshtml`).
+Map uses Leaflet + OpenStreetMap, locked to Cebu bounds (`Views/Canals/Map.cshtml`). Create/Edit use a Cebu-only drag-and-pin picker (`Views/Canals/Create.cshtml`, `Edit.cshtml`) centered on Cebu City (10.3157, 123.8854).
 
 ### 4.4 SensorsController — `Controllers/SensorsController.cs`
 
@@ -314,7 +317,7 @@ Base: `/Reports` — Views in `Views/Reports/`.
 
 | URL | View File | Access |
 | --- | --------- | ------ |
-| `GET + POST /Reports/Create` | `Views/Reports/Create.cshtml` | Resident only |
+| `GET + POST /Reports/Create` | `Views/Reports/Create.cshtml` (Cebu-only map pin + photo) | Resident only |
 | `GET /Reports/MyReports` | `Views/Reports/MyReports.cshtml` | Resident only |
 | `GET /Reports` | `Views/Reports/Index.cshtml` | Admin, LGU, Barangay, Maintenance |
 | `GET /Reports/Details/5` | `Views/Reports/Details.cshtml` | Admin, LGU, Barangay, Maintenance |
@@ -432,9 +435,9 @@ Demo these:
 
 Landing: `/Dashboard/Resident` (`Views/Dashboard/Resident.cshtml`)
 
-Demo these:
+Demo these (no Canals tab — removed for Residents):
 
-- `/Reports/Create` (submit + photo)
+- `/Reports/Create` (submit + photo + Cebu map pin)
 - `/Reports/MyReports` (track Pending → Under Review → Resolved)
 - `/Announcements` (read)
 - `/Notifications` (my inbox)
@@ -488,7 +491,7 @@ Registered (non-demo) users: created via `/Account/Register` → same `AspNetUse
 | SensorSimulationService | `Services/SensorSimulationService.cs` | Background readings every 20s; disabled by default |
 | Report uploads | `Controllers/ReportsController.cs` | → `wwwroot/uploads/reports/` |
 | Announcement uploads | `Controllers/AnnouncementsController.cs` | → `wwwroot/uploads/announcements/` |
-| DB context | `Data/ApplicationDbContext.cs` | 8 DbSets + Fluent API, unique `SensorCode`, indexes, Restrict / SetNull deletes |
+| DB context | `Data/ApplicationDbContext.cs` | 8 DbSets + Fluent API, unique `SensorCode`, indexes, Restrict / SetNull deletes (see §8 for full DB write-up) |
 | Startup | `Program.cs` | DI, Identity, cookies, SignalR, antiforgery, migrate + seed, 404 handler |
 
 Upload folders are auto-created at runtime (`Directory.CreateDirectory`). DB stores the `/uploads/...` path (`PhotoPath` / `ImagePath`).
@@ -507,16 +510,51 @@ Upload folders are auto-created at runtime (`Directory.CreateDirectory`). DB sto
 
 ---
 
-## 8. Getting Started (for Panel / Reproduction)
+## 8. Database — How It Is Connected (PostgreSQL)
 
-### Prerequisites
+### 8.1 What is used
 
-- .NET SDK 10.0
-- PostgreSQL 17+ with database `comsdb` owned by `comsuser`
+| Item | Value |
+| ---- | ----- |
+| Database engine | **PostgreSQL 17+** (server, port `5432`) |
+| Database name | **`comsdb`** |
+| Login role | **`comsuser`** (owner of `comsdb` and schema `public`) |
+| EF Core provider | **`Npgsql.EntityFrameworkCore.PostgreSQL` 9.0.x** (see `COMS MVC.csproj`) |
+| ORM | Entity Framework Core 9 |
+| Context | `Data/ApplicationDbContext.cs` (Identity + 8 `DbSet`s) |
+| Migrations | `Migrations/` — `InitialCreate`, `AddValidationConstraints`, `AddReportCoordinates` |
 
-### Database Setup
+### 8.2 Connection string (`appsettings.json:2-4`)
 
-1. Create database `comsdb` owned by `comsuser`.
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Host=localhost;Port=5432;Database=comsdb;Username=comsuser;Password=YOUR_PASSWORD_HERE"
+}
+```
+
+Parts: `Host` = DB server (use the PC's LAN IP for a second machine), `Port` = `5432` (PostgreSQL default), `Database` = `comsdb`, `Username`/`Password` = `comsuser` credentials.
+
+### 8.3 How the app connects (`Program.cs:10-14`)
+
+```csharp
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString));
+```
+
+On every startup (`Program.cs:62-69`) the app runs `db.Database.Migrate()` (auto-applies pending migrations) then `IDataSeeder.SeedAsync()` (creates the 5 roles + 5 demo users — see §6). So after `dotnet ef database update`, just `dotnet run` is enough; the schema stays current automatically.
+
+### 8.4 Tables created by `ApplicationDbContext`
+
+Identity: `AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`, `AspNetUserClaims`, `AspNetUserLogins`, `AspNetUserTokens`, `AspNetRoleClaims`. Domain: `Canals`, `Sensors`, `SensorReadings`, `ObstructionAlerts`, `CommunityReports` (+ nullable `Latitude`/`Longitude` from `AddReportCoordinates`), `FloodRiskAssessments`, `Notifications`, `Announcements`, plus `__EFMigrationsHistory`.
+
+Key constraints (Fluent API in `ApplicationDbContext.cs:30-149`): unique `Sensors.SensorCode`, indexes on `RecordedAt`/`DetectedAt`/`CreatedAt`/`AssessmentDate`, `DeleteBehavior.Restrict` on parent links (deleting a canal/sensor with children fails with a friendly message instead of cascading), `SetNull` for optional alert links.
+
+### 8.5 Setup from scratch (for panel / reproduction)
+
+Prerequisites: .NET SDK 10.0 + PostgreSQL 17+.
+
+1. Create database `comsdb` owned by login role `comsuser`.
 2. On `comsdb` run:
 
 ```sql
@@ -524,12 +562,14 @@ GRANT ALL ON SCHEMA public TO comsuser;
 ALTER SCHEMA public OWNER TO comsuser;
 ```
 
-3. Set connection string in `appsettings.json`.
+3. Set the connection string in `appsettings.json`.
 4. Apply migrations:
 
 ```bash
 dotnet ef database update
 ```
+
+5. Verify in pgAdmin/psql: tables listed under `comsdb > Schemas > public > Tables`, and `__EFMigrationsHistory` shows 3 applied migrations.
 
 ### Run
 
@@ -560,9 +600,9 @@ dotnet ef database update
 
 1. **Login** (`/Account/Login`) — validation, lockout message, role redirect.
 2. **Admin dashboard** (`/Dashboard/Admin`) — `DashboardViewModel` counts + `BuildDashboardViewModelAsync`.
-3. **Canals + Map** (`/Canals`, `/Canals/Map`) — `Models/Canal.cs` thresholds + Leaflet view.
-4. **Sensors + Readings** (`/Sensors`, `/SensorReadings`) — `Models/Sensor.cs` / `SensorReading.cs`.
-5. **Resident report** (Resident → `/Reports/Create` with photo → `wwwroot/uploads/reports/`) — `Models/CommunityReport.cs`.
+3. **Canals + Map** (`/Canals`, `/Canals/Map`) — Cebu-locked drag-and-pin picker on Create; `Models/Canal.cs` thresholds + Leaflet view.
+4. **Sensors + Readings** (`/Sensors`, `/SensorReadings`) — same Cebu picker on sensor Create (pin follows canal); `Models/Sensor.cs` / `SensorReading.cs`.
+5. **Resident report** (Resident → `/Reports/Create` with photo + Cebu map pin → `wwwroot/uploads/reports/`) — `Models/CommunityReport.cs` (`Latitude`/`Longitude` + mini map on Details).
 6. **Alert triage** (Maintenance → `/Alerts` acknowledge / resolve) — `AlertService.cs` + `Models/ObstructionAlert.cs`.
 7. **Flood risk** (`/FloodRisk`) — `FloodRiskService.cs` + `Models/FloodRiskAssessment.cs`.
 8. **Announcement + Notification** (`/Announcements/Create` as LGU → bell via `/monitoringhub`) — `MonitoringHub.cs` + `NotificationService.cs`.
@@ -570,10 +610,35 @@ dotnet ef database update
 
 ---
 
-## 10. Recent Updates
+## 10. Latest Features & Recent Updates
+
+### Cebu-only coverage (all maps locked to Cebu province)
+
+- Bounds lat 9.30–11.45, lng 123.20–124.60; center Cebu City (10.3157, 123.8854); `maxBounds` + `minZoom: 9` on every Leaflet map.
+- `/Canals/Create` + `/Canals/Edit` (Admin) — drag-and-pin picker replaces typed lat/long; "Use my location" rejects non-Cebu; server-side `ValidateCebuLocation()` rejects out-of-Cebu saves.
+- `/Sensors/Create` + `/Sensors/Edit` (Admin) — same picker; pin auto-jumps to the selected canal; server-side Cebu check in `ValidateSensorAsync()`.
+- `/Reports/Create` (Resident) — "Exact Location" picker replaces the free-text location box (kept as landmark detail); pin required inside Cebu; selecting a canal jumps the pin to it; `Details` shows coords + mini map. New nullable `Latitude`/`Longitude` columns via `AddReportCoordinates` migration.
+- `/Canals/Map` overview + canal/report `Details` maps — centered on Cebu with the same bounds lock.
+
+### Login page redesign + branding
+
+- Split-screen navy-gradient login (`Views/Account/Login.cshtml`): Cebu-coverage badge, feature highlights, icon inputs, show/hide password, gradient Sign In; full-bleed background; `returnUrl` now preserved through login.
+- Official logo: `COMS-LOGO.png` (root) copied to `wwwroot/images/` (+ transparent variant for dark surfaces) — used in sidebar, login, register, Home hero, and favicon (`wwwroot/favicon.ico` replaced).
+- COMS renamed everywhere to **Canal Obstruction Maintenance System**.
+
+### Resident simplification
+
+- Canals tab removed from the Resident sidebar (`Views/Shared/_Sidebar.cshtml`); `/Canals`, `/Canals/Details`, `/Canals/Map` now require Admin/LGU/Barangay/Maintenance (direct-URL access denied for Residents).
+
+### Reliability / error trapping (no UI changes)
+
+- Model validation: `[Range]` on all coordinates/dimensions/levels, `[StringLength]` on text, required sensor type/announcement content/audience/report type.
+- Controller hardening: input trimming, water-level ordering (Normal < Warning < Critical), duplicate sensor-code/email checks, role/audience/status whitelists, file type+size+extension checks with orphan cleanup, `TryParse` for user IDs, friendly FK-delete messages, fixed Edit concurrency redirect bug, fixed `LatestReadingsJson` null crash, fixed announcement image upload binding (`imageFile`), `Random.Shared` for test readings.
+- New migration `AddValidationConstraints` (announcement length limits).
+
+### Earlier baseline
 
 - PostgreSQL migration (Npgsql; removed SQLite WAL pragma).
 - Empty-by-default seeding (no demo canals / sensors).
-- Login / register error trapping (no 500 on bad input; field-level errors).
-- Lockout enforcement (5 attempts → 5-min lock; cookie persists on success).
+- Login / register error trapping + lockout (5 attempts → 5-min lock).
 - Solution load fix (`COMS MVC.slnx` path).
