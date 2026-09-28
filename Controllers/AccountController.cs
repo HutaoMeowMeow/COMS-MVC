@@ -277,13 +277,16 @@ namespace COMS_MVC.Controllers
             }
 
             // Look up the user in PostgreSQL via Identity (normalized email handled
-            // by UserManager, case-insensitive). Never reveal existence to the client.
+            // by UserManager, case-insensitive). Missing emails get an explicit
+            // "not found" error on the form (per requirements, no silent generic
+            // confirmation for unknown addresses).
             var user = await _userManager.FindByEmailAsync(model.Email);
             if (user is null || user.Email is null)
             {
-                // Server log only: distinguishes a DB miss from an SMTP failure.
                 _logger.LogWarning("ForgotPassword: no user found for entered email.");
-                return RedirectToAction(nameof(ForgotPasswordConfirmation));
+                ModelState.AddModelError(nameof(model.Email),
+                    "Email not found. Please check the address or register a new account.");
+                return View(model);
             }
 
             string resetLink;

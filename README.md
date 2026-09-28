@@ -244,7 +244,7 @@ Base: `/Account`
 | `GET + POST /Account/Delete` (delete own account) | `Views/Account/Delete.cshtml` | Logged in |
 | `POST /Account/Logout` | — (redirect to Login) | Logged in |
 
-Notes: login accepts username **or** email (+ Remember Me checkbox → 7-day persistent cookie, sliding expiration); register role dropdown is Resident-only (`AccountController.cs`); unknown roles fall back to Resident; failed role assignment rolls back the user. Forgot Password is email-based via the Resend HTTPS API — full step-by-step in §11. `Profile` edits FullName/Email/Phone/Barangay/City/Address plus optional password change (current + new); `Delete` requires password confirmation and blocks deleting the last remaining Admin. Top navbar Profile links to `/Account/Profile`; Login page links to Forgot Password.
+Notes: login accepts username **or** email (+ Remember Me checkbox → 7-day persistent cookie, sliding expiration); register role dropdown is Resident-only (`AccountController.cs`); unknown roles fall back to Resident; failed role assignment rolls back the user. Forgot Password is email-based via the Resend HTTPS API — unknown emails show an explicit not-found error — full step-by-step in §11. Register and Reset enforce the Identity password policy up front (min 6, upper/lower/number/special) with hints under each field. `Profile` edits FullName/Email/Phone/Barangay/City/Address plus optional password change (current + new); `Delete` requires password confirmation and blocks deleting the last remaining Admin. Top navbar Profile links to `/Account/Profile`; Login page links to Forgot Password.
 
 ### 4.2 DashboardController — `Controllers/DashboardController.cs`
 
@@ -672,7 +672,7 @@ dotnet ef database update
 ### 11.1 What the user experiences
 
 1. On `/Account/Login`, click **Forgot password?** → `/Account/ForgotPassword` (`Views/Account/ForgotPassword.cshtml`).
-2. Enter the account **email** and submit. The app always shows the same confirmation page (`ForgotPasswordConfirmation.cshtml`: *"If an account exists for that email…"*) — whether the email exists or not. This is deliberate anti-enumeration: an attacker can't probe which emails are registered.
+2. Enter the account **email** and submit. Unknown addresses get an explicit **Email not found** error on the form (`AccountController.ForgotPassword` checks PostgreSQL via `FindByEmailAsync`); known addresses proceed to the generic confirmation page.
 3. If the email is registered in PostgreSQL (`AspNetUsers`), a **reset email** arrives with a **Reset password** button (plus a plain-text URL fallback).
 4. Clicking it opens `/Account/ResetPassword?email=...&token=...` (`Views/Account/ResetPassword.cshtml`) showing the email and two new-password fields.
 5. Submit → password is replaced → `ResetPasswordConfirmation.cshtml` → **Sign in** with the new password.
@@ -706,7 +706,8 @@ The first implementation used Gmail SMTP (`smtp.gmail.com:587`, STARTTLS, App Pa
 
 ### 11.5 Security properties (defense points)
 
-- **Anti-enumeration**: identical response for existing/missing emails; `FindByEmailAsync` miss only logs server-side (`ForgotPassword: no user found…`).
+- **Explicit email check**: unknown addresses get an `Email not found` form error (explicit per requirements); send failures still land on the generic confirmation without crashing, logging the `COPY THIS RESET LINK` fallback.
+- **Password rules visible + enforced early**: both Register and Reset require min 6 chars with 1 uppercase, 1 lowercase, 1 number, 1 special character — matching the Identity policy in `Program.cs` (`RequireDigit/Uppercase/Lowercase/NonAlphanumeric`). Enforced by `[RegularExpression]` on the ViewModels (instant client-side feedback via `_ValidationScriptsPartial`) with a hint under each password field, so bad passwords never reach the server.
 - **Time-limited, single-use tokens**: DataProtection tokens, 1-hour lifespan, consumed by `ResetPasswordAsync`.
 - **No secret leaks**: API key travels only as a Bearer header; logs record status codes and truncated bodies, never the key or full link (except the intentional local-dev `COPY THIS RESET LINK` warning).
 - **Lockout still applies**: 5 failed logins → 5-minute lock; reset page enforces the same 6-char/complexity password policy as registration.

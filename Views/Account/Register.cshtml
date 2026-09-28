@@ -76,6 +76,7 @@
                                 <label asp-for="Password" class="form-label"></label>
                                 <input asp-for="Password" class="form-control" type="password" placeholder="Password" />
                                 <span asp-validation-for="Password" class="text-danger small"></span>
+                                <div class="form-text small text-muted">At least 6 characters, with 1 uppercase, 1 lowercase, 1 number, and 1 special character (e.g. !@@#$%).</div>
                             </div>
                             <div class="mb-4">
                                 <label asp-for="ConfirmPassword" class="form-label"></label>
