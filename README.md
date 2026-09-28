@@ -218,6 +218,10 @@ Per-user inbox, pushed via SignalR.
 - `Models/AccountViewModels.cs`:
   - `LoginViewModel`: `Username`, `Password`, `RememberMe`
   - `RegisterViewModel`: `FullName*`, `UserName*`, `Email*`, `PhoneNumber*`, `Password* (min 6)`, `ConfirmPassword*`, `Barangay?`, `City?`, `Address?`, `Role = Resident`
+  - `ForgotPasswordViewModel`: `Email*` (email format validated)
+  - `AccountResetPasswordViewModel`: `Email*`, `Token*` (Base64Url Identity token from the email link), `NewPassword* (min 6)`, `ConfirmPassword*` (must match `NewPassword`)
+  - `ProfileViewModel`: `UserName` (display only, immutable), `FullName*`, `Email*`, `PhoneNumber?`, `Barangay?`, `City?`, `Address?`, `CurrentPassword?` + `NewPassword?` (optional password change)
+  - `DeleteAccountViewModel`: `UserName`, `Email` (display), `Password*` (confirmation)
 - `Models/DashboardViewModel.cs`: aggregated counts (`TotalCanals`, `TotalSensors`, `ActiveAlerts`, `PendingReports`, `HighRiskCanals`, `RegisteredUsers`, `Online/OfflineSensors`) + lists (`RecentAlerts`, `RecentReports`, `RecentRiskAssessments`, `CanalStatusOverview`, `SensorStatus`, `LatestReadings`, `Announcements`) + `CurrentRole`, `UserName`, `UserBarangay`, `UnreadNotifications`. Built in `DashboardController.cs:78-170`.
 
 ---
@@ -232,9 +236,15 @@ Base: `/Account`
 | --- | --------- | ------ |
 | `GET + POST /Account/Login` | `Views/Account/Login.cshtml` | Anonymous |
 | `GET + POST /Account/Register` | `Views/Account/Register.cshtml` | Anonymous |
+| `GET + POST /Account/ForgotPassword` | `Views/Account/ForgotPassword.cshtml` | Anonymous |
+| `GET /Account/ForgotPasswordConfirmation` | `Views/Account/ForgotPasswordConfirmation.cshtml` | Anonymous |
+| `GET + POST /Account/ResetPassword?email=...&token=...` | `Views/Account/ResetPassword.cshtml` | Anonymous |
+| `GET /Account/ResetPasswordConfirmation` | `Views/Account/ResetPasswordConfirmation.cshtml` | Anonymous |
+| `GET + POST /Account/Profile` (update own account) | `Views/Account/Profile.cshtml` | Logged in |
+| `GET + POST /Account/Delete` (delete own account) | `Views/Account/Delete.cshtml` | Logged in |
 | `POST /Account/Logout` | — (redirect to Login) | Logged in |
 
-Notes: login accepts username **or** email; register role dropdown is Resident-only (`AccountController.cs:245-266`); unknown roles fall back to Resident; failed role assignment rolls back the user.
+Notes: login accepts username **or** email (+ Remember Me checkbox → 7-day persistent cookie, sliding expiration); register role dropdown is Resident-only (`AccountController.cs`); unknown roles fall back to Resident; failed role assignment rolls back the user. Forgot Password is email-based via the Resend HTTPS API — full step-by-step in §11. `Profile` edits FullName/Email/Phone/Barangay/City/Address plus optional password change (current + new); `Delete` requires password confirmation and blocks deleting the last remaining Admin. Top navbar Profile links to `/Account/Profile`; Login page links to Forgot Password.
 
 ### 4.2 DashboardController — `Controllers/DashboardController.cs`
 
@@ -475,7 +485,7 @@ Demo these (no Canals tab — removed for Residents):
 | Maintenance | maintenance@coms.gov | maintuser | `Maintenance@COMS123!` | Maintenance Lead |
 | Resident | resident@coms.gov | resident | `Resident@COMS123!` | Juan Dela Cruz |
 
-Registered (non-demo) users: created via `/Account/Register` → same `AspNetUsers` table with role `Resident`; manage at `/Users` (Admin only).
+Registered (non-demo) users: created via `/Account  /Register` → same `AspNetUsers` table with role `Resident`; manage at `/Users` (Admin only).
 
 ---
 
@@ -484,6 +494,7 @@ Registered (non-demo) users: created via `/Account/Register` → same `AspNetUse
 | Item | File | Notes |
 | ---- | ---- | ----- |
 | DataSeeder | `Services/DataSeeder.cs` | Seeds roles + users only |
+| Email (Resend) | `Services/EmailService.cs` (`IEmailService`, `ResendEmailService`, `ResendOptions`) | Transactional email over HTTPS for password resets (see §11); plain `HttpClient`, no SDK package |
 | SensorService | `Services/SensorService.cs` | Sensor helpers |
 | AlertService | `Services/AlertService.cs` | Creates / updates alerts with severity |
 | FloodRiskService | `Services/FloodRiskService.cs` | Rule-based score → `FloodRiskAssessments` |
@@ -504,9 +515,12 @@ Upload folders are auto-created at runtime (`Directory.CreateDirectory`). DB sto
     "DefaultConnection": "Host=localhost;Port=5432;Database=comsdb;Username=comsuser;Password=YOUR_PASSWORD_HERE"
   },
   "MapSettings": { "UseOpenStreetMap": true, "MapboxToken": "", "GoogleMapsApiKey": "" },
-  "DemoSettings": { "EnableSimulation": false, "SimulationIntervalSeconds": 20 }
+  "DemoSettings": { "EnableSimulation": false, "SimulationIntervalSeconds": 20 },
+  "Email": { "ApiKey": "", "SenderEmail": "", "SenderName": "COMS" }
 }
 ```
+
+`Email` feeds `ResendOptions` (`Program.cs:48-53`) for password-reset delivery (see §11). The real API key is **never committed** — stored in user-secrets (`dotnet user-secrets set "Email:ApiKey" "re_xxx"`) or `Email__ApiKey` env vars, which overlay the file at runtime.
 
 ---
 
@@ -642,3 +656,67 @@ dotnet ef database update
 - Empty-by-default seeding (no demo canals / sensors).
 - Login / register error trapping + lockout (5 attempts → 5-min lock).
 - Solution load fix (`COMS MVC.slnx` path).
+
+### Account management & password reset (new)
+
+- **Forgot Password via Resend email** — `/Account/ForgotPassword` → reset link emailed → `/Account/ResetPassword?email=...&token=...` → new password. Detailed step-by-step in §11.
+- **Remember Me** — Login checkbox issues a 7-day persistent cookie (`ExpireTimeSpan = 7 days`, sliding expiration in `Program.cs`).
+- **Update Account** — `/Account/Profile` (self-service edit of name/email/phone/location + optional password change), linked from the top-navbar Profile menu.
+- **Delete Account** — `/Account/Delete` (password confirmation, last-Admin guard), linked from Profile.
+- **Admin user management** — `/Users` (Admin only): edit details/roles, delete other users, direct password reset (`/Users/ResetPassword/5`).
+
+---
+
+## 11. Forgot Password — How It Works (Detailed)
+
+### 11.1 What the user experiences
+
+1. On `/Account/Login`, click **Forgot password?** → `/Account/ForgotPassword` (`Views/Account/ForgotPassword.cshtml`).
+2. Enter the account **email** and submit. The app always shows the same confirmation page (`ForgotPasswordConfirmation.cshtml`: *"If an account exists for that email…"*) — whether the email exists or not. This is deliberate anti-enumeration: an attacker can't probe which emails are registered.
+3. If the email is registered in PostgreSQL (`AspNetUsers`), a **reset email** arrives with a **Reset password** button (plus a plain-text URL fallback).
+4. Clicking it opens `/Account/ResetPassword?email=...&token=...` (`Views/Account/ResetPassword.cshtml`) showing the email and two new-password fields.
+5. Submit → password is replaced → `ResetPasswordConfirmation.cshtml` → **Sign in** with the new password.
+
+### 11.2 How it was made (code path)
+
+| Step | Code |
+| ---- | ---- |
+| Lookup | `AccountController.ForgotPassword` (POST) trims input and calls `_userManager.FindByEmailAsync(model.Email)` — Identity handles normalized-email matching against PostgreSQL, so case doesn't matter |
+| Token | `_userManager.GeneratePasswordResetTokenAsync(user)` (DataProtection provider, 1-hour lifespan set in `Program.cs:55-59`) |
+| Link-safe encoding | Token is Base64Url-encoded (`WebEncoders.Base64UrlEncode`) because raw Identity tokens contain `+/=` which break URLs |
+| Fully-qualified link | `Url.Action(nameof(ResetPassword), "Account", new { email, token = code }, protocol: Request.Scheme)` → `https://host/Account/ResetPassword?email=...&token=...` |
+| Send | `IEmailService.SendPasswordResetEmailAsync(user.Email, resetLink)` → `ResendEmailService` (`Services/EmailService.cs`) `POST https://api.resend.com/emails` with `Authorization: Bearer <ApiKey>`, JSON `{ from, to[], subject, html }` |
+| Verify | `AccountController.ResetPassword` (GET) requires both `email` + `token` or bounces to Forgot; POST Base64Url-decodes the token and calls `_userManager.ResetPasswordAsync(user, decodedToken, model.NewPassword)`; Identity errors (bad token, weak password) return as friendly validation messages |
+| Safety net | Any send failure is caught: the app still redirects to the generic confirmation (no crash, no enumeration leak) and logs `SMTP Failed or Unconfigured. COPY THIS RESET LINK TO TEST: {ResetLink}` so local testing can continue without a working provider |
+
+### 11.3 Why Resend (HTTPS) instead of Gmail SMTP
+
+The first implementation used Gmail SMTP (`smtp.gmail.com:587`, STARTTLS, App Password). It failed in this environment with `SMTP GeneralFailure: The operation has timed out` — the network/firewall silently drops outbound SMTP, so the handshake never completes. No code fix can unblock a filtered port. Resend sends over **HTTPS (port 443)**, which firewalls effectively never block, using a plain `HttpClient` (`Program.cs:49-53`, 15s timeout, no extra SDK package). Other iterations tried along the way (direct token-in-redirect, 6-digit email/SMS OTP via Semaphore) were replaced by the link flow as the most secure standard approach.
+
+### 11.4 Setup (to actually receive mail)
+
+1. resend.com → free account → API Keys → create key (`re_...`).
+2. Sender: verify a domain (production), or for testing use `onboarding@resend.dev` — free tier only delivers to your Resend account's own email address.
+3. Store secrets outside git (user-secrets overlay `appsettings.json` automatically):
+   ```bash
+   dotnet user-secrets set "Email:ApiKey" "re_xxx"
+   dotnet user-secrets set "Email:SenderEmail" "onboarding@resend.dev"
+   ```
+4. Restart `dotnet run` (config binds at startup), retry Forgot Password, expect `Resend email sent to...` in console.
+
+### 11.5 Security properties (defense points)
+
+- **Anti-enumeration**: identical response for existing/missing emails; `FindByEmailAsync` miss only logs server-side (`ForgotPassword: no user found…`).
+- **Time-limited, single-use tokens**: DataProtection tokens, 1-hour lifespan, consumed by `ResetPasswordAsync`.
+- **No secret leaks**: API key travels only as a Bearer header; logs record status codes and truncated bodies, never the key or full link (except the intentional local-dev `COPY THIS RESET LINK` warning).
+- **Lockout still applies**: 5 failed logins → 5-minute lock; reset page enforces the same 6-char/complexity password policy as registration.
+
+### 11.6 Troubleshooting
+
+| Symptom | Console line | Fix |
+| ------- | ------------ | --- |
+| Confirmation shown, no mail | `ForgotPassword: no user found…` | Email isn't in the Postgres `comsdb` the app uses — check Admin → Users |
+| Confirmation shown, no mail | `Email NOT sent (Resend not configured)` | `Email:ApiKey`/`SenderEmail` empty — set secrets, restart |
+| Error logged | `Resend API error 401` | Bad/revoked API key |
+| Error logged | `Resend API error 422` | Unverified sender domain, or `onboarding@` sent to non-account email |
+| Old SMTP path | `SMTP GeneralFailure: timed out` | Network blocks port 587 — Resend (above) is the fix |

@@ -61,4 +61,80 @@ namespace COMS_MVC.Models
         [Display(Name = "Role")]
         public string Role { get; set; } = "Resident";
     }
+
+    public class ForgotPasswordViewModel
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [Display(Name = "Email")]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class AccountResetPasswordViewModel
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Reset token is missing. Please use the link from your email.")]
+        public string Token { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "New password is required")]
+        [StringLength(100, ErrorMessage = "Password must be at least 6 characters", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "New password")]
+        public string NewPassword { get; set; } = string.Empty;
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm new password")]
+        [Compare("NewPassword", ErrorMessage = "Passwords do not match")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+    public class ProfileViewModel
+    {
+        [Display(Name = "Username")]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Full name is required")]
+        [StringLength(100)]
+        [Display(Name = "Full Name")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; } = string.Empty;
+
+        [Phone(ErrorMessage = "Invalid phone number format")]
+        [Display(Name = "Phone Number")]
+        public string? PhoneNumber { get; set; }
+
+        public string? Barangay { get; set; }
+
+        [Display(Name = "City / Municipality")]
+        public string? City { get; set; }
+
+        public string? Address { get; set; }
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Current password (only if changing password)")]
+        public string? CurrentPassword { get; set; }
+
+        [StringLength(100, ErrorMessage = "Password must be at least 6 characters", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "New password (optional)")]
+        public string? NewPassword { get; set; }
+    }
+
+    public class DeleteAccountViewModel
+    {
+        public string UserName { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please enter your password to confirm deletion.")]
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm with password")]
+        public string Password { get; set; } = string.Empty;
+    }
 }

@@ -27,7 +27,8 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<int>>(options =>
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddSignInManager()
-.AddRoles<IdentityRole<int>>();
+.AddRoles<IdentityRole<int>>()
+.AddDefaultTokenProviders();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -39,6 +40,23 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.Configure<SimulationOptions>(builder.Configuration.GetSection("DemoSettings"));
+
+// Email via Resend HTTPS API (port 443 — works where SMTP ports are blocked).
+// Put the real key in user-secrets / env vars, never commit it:
+//   dotnet user-secrets set "Email:ApiKey" "re_xxx"
+//   dotnet user-secrets set "Email:SenderEmail" "no-reply@yourdomain.com"
+builder.Services.Configure<ResendOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.AddHttpClient<IEmailService, ResendEmailService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.resend.com/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
+// Password-reset tokens expire after 1 hour (secure default).
+builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
+{
+    options.TokenLifespan = TimeSpan.FromHours(1);
+});
 
 builder.Services.AddScoped<ISensorService, SensorService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
