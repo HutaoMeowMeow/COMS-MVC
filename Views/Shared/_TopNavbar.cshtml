@@ -104,23 +104,34 @@
             }
         }
 
+        // Native fetch: this inline script runs while the page is still parsing,
+        // before footer libraries (jQuery) load, so `$` is not available here.
+        function getJson(url) {
+            return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('request failed');
+                    return response.json();
+                });
+        }
+
         function fetchUnreadCount() {
-            $.get('/Notifications/UnreadCount', function (data) {
+            getJson('/Notifications/UnreadCount').then(function (data) {
                 var badge = document.getElementById('notification-count-badge');
+                if (!badge) return;
                 if (data.count > 0) {
                     badge.textContent = data.count;
                     badge.style.display = 'inline-block';
                 } else {
                     badge.style.display = 'none';
                 }
-            });
+            }).catch(function () { });
         }
 
         // Scoped preview: the endpoint returns only the logged-in user's items.
         function refreshPreview() {
             var list = document.getElementById('notification-preview-list');
             if (!list) return;
-            $.get('/Notifications/Recent', function (data) {
+            getJson('/Notifications/Recent').then(function (data) {
                 var unreadBadge = document.getElementById('notification-preview-unread');
                 if (unreadBadge) {
                     unreadBadge.textContent = data.unread;
@@ -141,7 +152,7 @@
                         '<span class="d-block text-muted small">' + esc(n.createdAt) + '</span>' +
                         '</span></span></a>';
                 }).join('');
-            });
+            }).catch(function () { });
         }
         window.refreshNotificationPreview = refreshPreview;
 

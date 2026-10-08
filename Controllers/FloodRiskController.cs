@@ -29,6 +29,9 @@ namespace COMS_MVC.Controllers
                 }
             }
 
+            // The news panel loads asynchronously in the browser (see Index view):
+            // Flood Risk never awaits the external news provider, so a slow or
+            // dead provider cannot delay or break this core page.
             ViewBag.Canals = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(canals, "CanalId", "CanalName");
             return View(assessments);
         }

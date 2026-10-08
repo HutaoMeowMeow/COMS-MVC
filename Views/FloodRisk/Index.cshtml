@@ -80,3 +80,39 @@
         </div>
     }
 </div>
+
+<div id="flood-news-panel" data-panel-url="@Url.Action("Panel", "FloodNews")">
+    <div class="card border-0 shadow-sm mt-4" aria-live="polite">
+        <div class="card-body text-muted small">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading flood news…
+        </div>
+    </div>
+</div>
+<script>
+    // Optional news panel: fetched AFTER the core page renders, so a slow or
+    // dead news provider can never freeze Flood Risk. No new libraries.
+    (function () {
+        var slot = document.getElementById('flood-news-panel');
+        if (!slot || !slot.dataset.panelUrl) return;
+        var controller = ('AbortController' in window) ? new AbortController() : null;
+        var timer = null;
+        if (controller) {
+            timer = setTimeout(function () { controller.abort(); }, 20000);
+        }
+        fetch(slot.dataset.panelUrl, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            signal: controller ? controller.signal : undefined
+        }).then(function (response) {
+            if (!response.ok) throw new Error('panel request failed');
+            return response.text();
+        }).then(function (html) {
+            slot.innerHTML = html;
+        }).catch(function () {
+            slot.innerHTML = '<div class="card border-0 shadow-sm mt-4"><div class="card-body">'
+                + '<p class="text-muted small mb-0"><i class="bi bi-cloud-slash me-1"></i>'
+                + 'Flood news is temporarily unavailable.</p></div></div>';
+        }).finally(function () {
+            if (timer) clearTimeout(timer);
+        });
+    })();
+</script>

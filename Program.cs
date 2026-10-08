@@ -96,6 +96,16 @@ builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.Configure<ImageVerificationOptions>(builder.Configuration.GetSection("ImageVerification"));
 builder.Services.AddScoped<IImageVerificationService, HeuristicImageVerificationService>();
 
+// Flood News (keyless public RSS: GDACS + PH news). Fetch-on-demand with
+// IMemoryCache; last good result is served stale on provider failure.
+builder.Services.Configure<FloodNewsOptions>(builder.Configuration.GetSection("FloodNews"));
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<IFloodNewsService, FloodNewsService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("COMS-FloodNews/1.0");
+});
+
 // Password-reset tokens expire after 1 hour (secure default).
 builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
 {
