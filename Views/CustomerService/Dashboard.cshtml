@@ -1,0 +1,177 @@
+@model SupportStaffDashboardViewModel
+@{
+    ViewData["Title"] = "Customer Service Dashboard";
+    ViewData["PageTitle"] = "Customer Service";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-headset me-2"></i>Customer Service
+        @if ((int)(ViewBag.MyAssignedCount ?? 0) > 0)
+        {
+            <span class="badge bg-primary ms-1">@ViewBag.MyAssignedCount assigned to me</span>
+        }
+    </h1>
+    <a asp-action="Tickets" class="btn btn-primary">
+        <i class="bi bi-ticket-detailed me-1"></i>All Tickets
+    </a>
+</div>
+
+<div class="row g-3 g-lg-4 mb-4">
+    <div class="col-6 col-lg-4 col-xl-2">
+        <a asp-action="Tickets" asp-route-status="Open" class="text-decoration-none">
+            <div class="card stat-card" style="--i:0">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon stat-tint-blue"><i class="bi bi-folder2-open"></i></span>
+                    <div>
+                        <div class="stat-num">@Model.OpenCount</div>
+                        <div class="stat-label">Open</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <a asp-action="Tickets" asp-route-status="In Progress" class="text-decoration-none">
+            <div class="card stat-card" style="--i:1">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon stat-tint-amber"><i class="bi bi-hourglass-split"></i></span>
+                    <div>
+                        <div class="stat-num">@Model.InProgressCount</div>
+                        <div class="stat-label">In Progress</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <a asp-action="Tickets" asp-route-status="Waiting for User" class="text-decoration-none">
+            <div class="card stat-card" style="--i:2">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon stat-tint-slate"><i class="bi bi-clock-history"></i></span>
+                    <div>
+                        <div class="stat-num">@Model.WaitingCount</div>
+                        <div class="stat-label">Waiting for User</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <a asp-action="Tickets" asp-route-status="Resolved" class="text-decoration-none">
+            <div class="card stat-card" style="--i:3">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon stat-tint-green"><i class="bi bi-check-circle"></i></span>
+                    <div>
+                        <div class="stat-num">@Model.ResolvedCount</div>
+                        <div class="stat-label">Resolved</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <a asp-action="Tickets" asp-route-status="Closed" class="text-decoration-none">
+            <div class="card stat-card" style="--i:4">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon stat-tint-slate"><i class="bi bi-lock-fill"></i></span>
+                    <div>
+                        <div class="stat-num">@Model.ClosedCount</div>
+                        <div class="stat-label">Closed</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <a asp-action="Tickets" asp-route-priority="Urgent" class="text-decoration-none">
+            <div class="card stat-card" style="--i:5">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="stat-icon stat-tint-red"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                    <div>
+                        <div class="stat-num">@Model.UrgentCount</div>
+                        <div class="stat-label">Urgent</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Tickets</h5>
+        <a asp-action="Tickets" class="text-decoration-none small">View All</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 support-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Subject</th>
+                        <th>Resident</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Updated</th>
+                        <th><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.RecentTickets.Any())
+                    {
+                        var unread = ViewBag.UnreadByTicket as Dictionary<int, int> ?? new Dictionary<int, int>();
+                        @foreach (var ticket in Model.RecentTickets)
+                        {
+                            var sc = ticket.Status switch
+                            {
+                                "Resolved" => "st-resolved",
+                                "In Progress" => "st-in-progress",
+                                "Open" => "st-pending",
+                                "Waiting for User" => "st-under-review",
+                                "Closed" => "st-low",
+                                _ => "st-pending"
+                            };
+                            var pc = ticket.Priority switch
+                            {
+                                "Urgent" => "st-critical",
+                                "High" => "st-high",
+                                "Normal" => "st-medium",
+                                _ => "st-low"
+                            };
+                            <tr>
+                                <td class="small" data-label="#">#@ticket.SupportTicketId</td>
+                                <td class="fw-medium" data-label="Subject">
+                                    @ticket.Subject
+                                    @if (unread.TryGetValue(ticket.SupportTicketId, out var u) && u > 0)
+                                    {
+                                        <span class="badge bg-danger ms-1">@u new</span>
+                                    }
+                                </td>
+                                <td class="small" data-label="Resident">@ticket.User?.FullName</td>
+                                <td data-label="Priority"><span class="status-badge @pc">@ticket.Priority</span></td>
+                                <td data-label="Status"><span class="status-badge @sc">@ticket.Status</span></td>
+                                <td class="small text-muted" data-label="Updated">@ticket.UpdatedAt.ToString("MMM dd, yyyy")</td>
+                                <td class="support-action">
+                                    <a asp-action="Manage" asp-route-id="@ticket.SupportTicketId" class="btn btn-sm btn-outline-primary" aria-label="Open ticket @ticket.SupportTicketId">Open</a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="py-0">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-ticket-detailed"></i></div>
+                                    <h6>No support tickets found</h6>
+                                    <p>New resident requests will appear here.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

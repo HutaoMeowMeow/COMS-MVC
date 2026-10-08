@@ -1,0 +1,9 @@
+bin/
+obj/
+out/
+.vs/
+.git/
+*.db
+*.db-shm
+*.db-wal
+*.user

@@ -1,0 +1,277 @@
+/* Customer-service chat + ticket styles. Uses the existing COMS theme
+   variables so light and dark mode both work with no duplication. */
+
+.support-chat {
+    display: flex;
+    flex-direction: column;
+    height: 480px;
+    max-height: 60vh;
+}
+
+.support-messages {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    padding: 1.1rem 1.2rem;
+    background-color: var(--theme-bg);
+    border-bottom: 1px solid var(--theme-border);
+    border-top-left-radius: var(--coms-radius-lg);
+    border-top-right-radius: var(--coms-radius-lg);
+}
+
+.support-msg {
+    max-width: 78%;
+    padding: .6rem .85rem;
+    border-radius: 1rem;
+    font-size: .9rem;
+    line-height: 1.45;
+    word-break: break-word;
+    box-shadow: var(--coms-card-shadow);
+}
+
+.support-msg .support-meta {
+    display: block;
+    font-size: .72rem;
+    margin-top: .3rem;
+    opacity: .75;
+}
+
+.support-msg.mine {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--coms-blue) 0%, var(--coms-sky) 100%);
+    color: #fff;
+    border-bottom-right-radius: .25rem;
+}
+
+.support-msg.theirs {
+    align-self: flex-start;
+    background-color: var(--theme-card);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text);
+    border-bottom-left-radius: .25rem;
+}
+
+.support-msg.internal-note {
+    align-self: stretch;
+    max-width: 100%;
+    background-color: var(--coms-warning-bg);
+    border: 1px dashed var(--coms-warning);
+    color: var(--theme-text);
+    border-radius: .65rem;
+    font-size: .85rem;
+}
+
+.support-msg .internal-tag {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--coms-warning);
+}
+
+.support-composer {
+    padding: .9rem 1.1rem;
+}
+
+.support-help-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    text-align: left;
+    width: 100%;
+    padding: 1.25rem;
+    border-radius: var(--coms-radius-lg);
+    background: var(--theme-card);
+    border: 1px solid var(--theme-border);
+    box-shadow: var(--coms-card-shadow);
+    color: var(--theme-text);
+    transition: transform .18s ease, box-shadow .18s ease;
+    text-decoration: none;
+}
+
+.support-help-option:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--coms-card-shadow-hover);
+    color: var(--theme-text);
+}
+
+.support-help-option .support-help-icon {
+    width: 52px;
+    height: 52px;
+    flex: none;
+    border-radius: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: rgba(43, 108, 176, .12);
+    color: var(--coms-blue);
+}
+
+@media (max-width: 575.98px) {
+    .support-chat {
+        height: 62vh;
+        max-height: none;
+    }
+
+    .support-msg {
+        max-width: 92%;
+    }
+}
+
+/* ---------- Responsive fixes: mobile/tablet (desktop untouched) ---------- */
+@media (max-width: 767.98px) {
+    /* Ticket tables become stacked cards; thead is hidden. */
+    .support-table thead {
+        display: none;
+    }
+
+    .support-table,
+    .support-table tbody {
+        display: block;
+    }
+
+    .support-table tr {
+        display: block;
+        border: 1px solid var(--theme-border);
+        border-radius: var(--coms-radius-md);
+        margin-bottom: .75rem;
+        padding: .5rem 0;
+        background-color: var(--theme-card);
+    }
+
+    .support-table tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .support-table td {
+        display: block;
+        width: 100%;
+        border: 0;
+        padding: .3rem 1rem;
+    }
+
+    .support-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--theme-text-secondary);
+    }
+
+    .support-table td.support-action {
+        padding-top: .6rem;
+    }
+
+    .support-table td.support-action .btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    /* Long subjects/URLs wrap instead of overflowing. */
+    .page-head {
+        flex-wrap: wrap;
+    }
+
+    .page-head h1 {
+        overflow-wrap: anywhere;
+    }
+
+    .support-msg {
+        overflow-wrap: anywhere;
+    }
+
+    /* Chat uses the dynamic viewport so the composer stays reachable. */
+    .support-chat {
+        height: 68vh;
+        height: 68dvh;
+        max-height: none;
+    }
+
+    /* Readable 44px touch targets on support pages. */
+    .support-chat .btn,
+    .support-help-option {
+        min-height: 44px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .support-help-option {
+        transition: none;
+    }
+}
+
+/* ---------- Ticket lifecycle (close / read-only / actions) ---------- */
+.support-closed-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    padding: .8rem 1.1rem;
+    background-color: var(--coms-neutral-bg, #edf1f6);
+    border-bottom: 1px solid var(--theme-border);
+    color: var(--theme-text);
+    font-size: .88rem;
+}
+
+.support-closed-banner .bi {
+    margin-top: .15rem;
+}
+
+.support-chat.is-closed .support-messages {
+    background-color: var(--theme-bg-secondary);
+}
+
+.composer-disabled-note {
+    font-size: .82rem;
+    color: var(--theme-text-secondary);
+    background-color: var(--theme-bg-secondary);
+    border: 1px dashed var(--theme-border);
+    border-radius: .5rem;
+    padding: .5rem .75rem;
+    margin-bottom: .5rem;
+}
+
+.ticket-closed .card-header {
+    border-bottom-color: var(--theme-border);
+}
+
+.ticket-action-group {
+    border: 1px solid var(--theme-border);
+    border-radius: .65rem;
+    padding: .7rem;
+    background-color: var(--theme-bg-secondary);
+}
+
+.ticket-action-group + .ticket-action-group {
+    margin-top: .1rem;
+}
+
+.ticket-action-label {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--theme-text-secondary);
+    margin-bottom: .45rem;
+}
+
+.ticket-action-danger {
+    border-color: rgba(180, 35, 42, .35);
+}
+
+.ticket-action-danger .ticket-action-label {
+    color: var(--coms-danger, #b4232a);
+}
+
+[data-theme="dark"] .support-closed-banner {
+    background-color: #242424;
+}
+
+[data-theme="dark"] .ticket-action-group {
+    background-color: #242424;
+}

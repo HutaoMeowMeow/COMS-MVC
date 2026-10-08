@@ -1,0 +1,212 @@
+@model CommunityReport
+@{
+    ViewData["Title"] = "Report Details";
+    ViewData["PageTitle"] = "Report Details";
+    var statusClass = Model.Status switch
+    {
+        "Resolved" => "st-resolved",
+        "In Progress" => "st-in-progress",
+        "Pending" => "st-pending",
+        "Under Review" => "st-under-review",
+        "Verified" => "st-verified",
+        "Assigned" => "st-assigned",
+        "Rejected" => "st-rejected",
+        _ => "st-pending"
+    };
+}
+
+<div class="page-head">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary" aria-label="Back to reports">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="h3 mb-0">Report #@Model.CommunityReportId</h1>
+            <p class="page-sub">@Model.Title</p>
+        </div>
+    </div>
+    <span class="status-badge @statusClass fs-6">@Model.Status</span>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <section class="report-section reveal" style="--i:0">
+            <div class="section-head">
+                <span class="section-num"><i class="bi bi-info-circle"></i></span>
+                <div>
+                    <h5>Report information</h5>
+                    <p>What was reported and when.</p>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <dl class="row detail-list mb-0">
+                    <dt class="col-sm-4">Canal</dt>
+                    <dd class="col-sm-8">@(Model.Canal != null ? $"{Model.Canal.CanalName} — {Model.Canal.Location}" : "Not yet assigned — see pinned location below")</dd>
+                    <dt class="col-sm-4">Report type</dt>
+                    <dd class="col-sm-8"><span class="badge bg-light text-dark border">@Model.ReportType</span></dd>
+                    @if (Model.ReportType == "Other" && !string.IsNullOrWhiteSpace(Model.Description))
+                    {
+                        // The "Other" specification is stored as the leading
+                        // paragraph of Description (see Create POST).
+                        <dt class="col-sm-4">Specified problem</dt>
+                        <dd class="col-sm-8">@Model.Description.Split(new[] { "\n\n" }, 2, StringSplitOptions.None)[0]</dd>
+                    }
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8"><span class="status-badge @statusClass">@Model.Status</span></dd>
+                    <dt class="col-sm-4">Landmark</dt>
+                    <dd class="col-sm-8">@(Model.Location ?? "Not specified")</dd>
+                    <dt class="col-sm-4">Submitted by</dt>
+                    <dd class="col-sm-8">@Model.User?.FullName (@Model.User?.UserName)</dd>
+                    <dt class="col-sm-4">Submitted</dt>
+                    <dd class="col-sm-8">@Model.CreatedAt.ToString("g")</dd>
+                    <dt class="col-sm-4">Last updated</dt>
+                    <dd class="col-sm-8">@Model.UpdatedAt.ToString("g")</dd>
+                </dl>
+
+                <h6 class="mt-3 mb-2"><i class="bi bi-chat-text me-1 text-primary"></i>Description</h6>
+                <div class="card border-0 bg-light">
+                    <div class="card-body">@Model.Description</div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.PhotoPath))
+                {
+                    <h6 class="mt-3 mb-2"><i class="bi bi-image me-1 text-primary"></i>Photo</h6>
+                    <img src="@Model.PhotoPath" class="img-fluid rounded border" style="max-height: 320px;" alt="Report photo" onerror="this.style.display='none'" />
+
+                    <h6 class="mt-3 mb-2"><i class="bi bi-shield-check me-1 text-primary"></i>Image Verification</h6>
+                    @if (string.IsNullOrEmpty(Model.ImageVerificationStatus))
+                    {
+                        <p class="report-meta mb-0">Not analyzed.</p>
+                    }
+                    else
+                    {
+                        var vs = Model.ImageVerificationStatus switch
+                        {
+                            "Authentic" => "st-resolved",
+                            "Suspicious" => "st-in-progress",
+                            "LikelyManipulated" => "st-rejected",
+                            "Pending" => "st-pending",
+                            _ => "st-low"
+                        };
+                        var vlabel = Model.ImageVerificationStatus switch
+                        {
+                            "Authentic" => "Likely Authentic",
+                            "Suspicious" => "Suspicious",
+                            "LikelyManipulated" => "Likely Manipulated",
+                            "Pending" => "Checking image…",
+                            "Failed" => "Check failed",
+                            _ => "Unable to Determine"
+                        };
+                        <p class="mb-1"><span class="status-badge @vs">@vlabel</span>
+                        @if (Model.ImageVerificationConfidence.HasValue)
+                        {
+                            <span class="report-meta ms-1">Confidence: @Model.ImageVerificationConfidence%</span>
+                        }</p>
+                        @if (!string.IsNullOrEmpty(Model.ImageVerificationReason))
+                        {
+                            <p class="report-meta mb-0">@Model.ImageVerificationReason</p>
+                        }
+                        <p class="report-meta mt-1 mb-0"><i class="bi bi-info-circle me-1"></i>Advisory only — @(User.IsInRole("Resident") ? "LGU personnel will review your report." : "manual review decides legitimacy.")</p>
+                    }
+                }
+
+                @if (Model.Latitude != null && Model.Longitude != null)
+                {
+                    <h6 class="mt-3 mb-2"><i class="bi bi-geo-alt me-1 text-primary"></i>Pinned location (Cebu)</h6>
+                    <p class="report-meta">@Model.Latitude.Value.ToString("F6"), @Model.Longitude.Value.ToString("F6")</p>
+                    <div id="reportMap" style="height: 280px;" class="map-frame"></div>
+                }
+            </div>
+        </section>
+
+        @if (User.IsInRole("Admin") || User.IsInRole("LGU") || User.IsInRole("Barangay"))
+        {
+            <section class="report-section reveal" style="--i:1">
+                <div class="section-head">
+                    <span class="section-num"><i class="bi bi-pencil-square"></i></span>
+                    <div>
+                        <h5>Update report status</h5>
+                        <p>The resident sees this status on their report.</p>
+                    </div>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="UpdateStatus" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.CommunityReportId" />
+                        <div class="mb-3">
+                            <label class="form-label">New Status</label>
+                            <select name="status" class="form-select">
+                                <option value="Pending">Pending</option>
+                                <option value="Under Review">Under Review</option>
+                                <option value="Verified">Verified</option>
+                                <option value="Assigned">Assigned</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Resolved">Resolved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea name="notes" class="form-control" rows="2"
+                                      placeholder="Add notes about this status update..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Update Status
+                        </button>
+                    </form>
+                </div>
+            </section>
+        }
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm reveal" style="--i:1">
+            <div class="card-body">
+                <h6 class="mb-3"><i class="bi bi-signpost-2 me-1 text-primary"></i>What happens next?</h6>
+                <ul class="auth-check-list text-dark">
+                    <li class="text-muted"><i class="bi bi-check-circle-fill text-success"></i>LGU personnel review your pinned location.</li>
+                    <li class="text-muted"><i class="bi bi-check-circle-fill text-success"></i>They identify the canal and plan the response.</li>
+                    <li class="text-muted"><i class="bi bi-check-circle-fill text-success"></i>You get notified as the status changes.</li>
+                </ul>
+                @if (User.IsInRole("Admin"))
+                {
+                    <hr />
+                    <form asp-action="Delete" method="post" asp-route-id="@Model.CommunityReportId">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-danger w-100"
+                                onclick="return confirm('Are you sure you want to delete this report?');">
+                            <i class="bi bi-trash me-1"></i>Delete Report
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @if (Model.Latitude != null && Model.Longitude != null)
+    {
+        <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var lat = @Model.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var lng = @Model.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
+                var map = L.map('reportMap', {
+                    maxBounds: cebuBounds,
+                    maxBoundsViscosity: 1.0,
+                    minZoom: 9,
+                    maxZoom: 18
+                }).setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                L.marker([lat, lng]).addTo(map)
+                    .bindPopup('<b>Reported location</b>')
+                    .openPopup();
+            });
+        </script>
+    }
+}

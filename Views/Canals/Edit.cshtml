@@ -1,0 +1,229 @@
+@model Canal
+@{
+    ViewData["Title"] = "Edit Canal";
+    ViewData["PageTitle"] = "Edit Canal";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-pencil me-2"></i>Edit Canal</h1>
+    <div>
+        <a asp-action="Details" asp-route-id="@Model.CanalId" class="btn btn-outline-secondary">
+            <i class="bi bi-eye me-1"></i>Details
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary ms-2">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<form asp-action="Edit" method="post" asp-route-id="@Model.CanalId">
+    @Html.AntiForgeryToken()
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Canal Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="CanalName" class="form-label"></label>
+                    <input asp-for="CanalName" class="form-control" />
+                    <span asp-validation-for="CanalName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Location" class="form-label"></label>
+                    <input asp-for="Location" class="form-control" />
+                    <span asp-validation-for="Location" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Barangay" class="form-label"></label>
+                    <input asp-for="Barangay" class="form-control" />
+                    <span asp-validation-for="Barangay" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="City" class="form-label"></label>
+                    <input asp-for="City" class="form-control" />
+                    <span asp-validation-for="City" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Geographic Coordinates</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Latitude" class="form-label"></label>
+                    <input asp-for="Latitude" class="form-control" type="number" step="0.000001" />
+                    <span asp-validation-for="Latitude" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Longitude" class="form-label"></label>
+                    <input asp-for="Longitude" class="form-control" type="number" step="0.000001" />
+                    <span asp-validation-for="Longitude" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small text-muted"><i class="bi bi-map me-1"></i>Cebu only — click the map or drag the pin to set coordinates</span>
+                    <button type="button" id="locateMeBtn" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-crosshair me-1"></i>Use my location
+                    </button>
+                </div>
+                <div id="canalPickerMap" style="height: 400px;" class="rounded border"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-rulers me-2"></i>Canal Dimensions & Thresholds</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label asp-for="Length" class="form-label"></label>
+                    <input asp-for="Length" class="form-control" step="0.1" />
+                    <span asp-validation-for="Length" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Width" class="form-label"></label>
+                    <input asp-for="Width" class="form-control" step="0.1" />
+                    <span asp-validation-for="Width" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Depth" class="form-label"></label>
+                    <input asp-for="Depth" class="form-control" step="0.1" />
+                    <span asp-validation-for="Depth" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Status" class="form-label"></label>
+                    <select asp-for="Status" class="form-select" asp-items="ViewBag.StatusList"></select>
+                    <span asp-validation-for="Status" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="NormalWaterLevel" class="form-label"></label>
+                    <input asp-for="NormalWaterLevel" class="form-control" step="0.01" />
+                    <span asp-validation-for="NormalWaterLevel" class="text-danger small"></span>
+                    <div class="form-text">Normal operating water level</div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="WarningWaterLevel" class="form-label"></label>
+                    <input asp-for="WarningWaterLevel" class="form-control" step="0.01" />
+                    <span asp-validation-for="WarningWaterLevel" class="text-danger small"></span>
+                    <div class="form-text">Level that triggers warnings</div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="CriticalWaterLevel" class="form-label"></label>
+                    <input asp-for="CriticalWaterLevel" class="form-control" step="0.01" />
+                    <span asp-validation-for="CriticalWaterLevel" class="text-danger small"></span>
+                    <div class="form-text">Level that triggers critical alerts</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Save Changes
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var latInput = document.getElementById('Latitude');
+            var lngInput = document.getElementById('Longitude');
+            // Cebu province bounds: lat 9.30-11.45, lng 123.20-124.60. Center: Cebu City.
+            var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
+            var cebuCenter = [10.3157, 123.8854];
+            var defaultLat = parseFloat(latInput.value) || cebuCenter[0];
+            var defaultLng = parseFloat(lngInput.value) || cebuCenter[1];
+            if (!cebuBounds.contains([defaultLat, defaultLng])) {
+                defaultLat = cebuCenter[0];
+                defaultLng = cebuCenter[1];
+            }
+
+            var map = L.map('canalPickerMap', {
+                maxBounds: cebuBounds,
+                maxBoundsViscosity: 1.0,
+                minZoom: 9,
+                maxZoom: 18
+            }).setView([defaultLat, defaultLng], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            var marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+
+            function inCebu(lat, lng) {
+                return lat >= 9.30 && lat <= 11.45 && lng >= 123.20 && lng <= 124.60;
+            }
+
+            function syncInputs(lat, lng) {
+                latInput.value = lat.toFixed(6);
+                lngInput.value = lng.toFixed(6);
+            }
+
+            marker.on('dragend', function () {
+                var pos = marker.getLatLng();
+                if (!inCebu(pos.lat, pos.lng)) {
+                    marker.setLatLng(cebuBounds.contains(marker.getLatLng()) ? marker.getLatLng() : cebuCenter);
+                    alert('Please pick a location inside Cebu.');
+                    return;
+                }
+                syncInputs(pos.lat, pos.lng);
+                map.panTo(pos);
+            });
+
+            map.on('click', function (e) {
+                if (!inCebu(e.latlng.lat, e.latlng.lng)) {
+                    alert('That point is outside Cebu. Please pick a location inside Cebu.');
+                    return;
+                }
+                marker.setLatLng(e.latlng);
+                syncInputs(e.latlng.lat, e.latlng.lng);
+            });
+
+            function syncMarkerFromInputs() {
+                var lat = parseFloat(latInput.value);
+                var lng = parseFloat(lngInput.value);
+                if (!isNaN(lat) && !isNaN(lng) && inCebu(lat, lng)) {
+                    marker.setLatLng([lat, lng]);
+                    map.panTo([lat, lng]);
+                }
+            }
+            latInput.addEventListener('change', syncMarkerFromInputs);
+            lngInput.addEventListener('change', syncMarkerFromInputs);
+
+            var locateBtn = document.getElementById('locateMeBtn');
+            if (locateBtn && navigator.geolocation) {
+                locateBtn.addEventListener('click', function () {
+                    navigator.geolocation.getCurrentPosition(function (pos) {
+                        if (!inCebu(pos.coords.latitude, pos.coords.longitude)) {
+                            alert('Your current location is outside Cebu. Please drag the pin to the canal site in Cebu.');
+                            return;
+                        }
+                        var latlng = [pos.coords.latitude, pos.coords.longitude];
+                        marker.setLatLng(latlng);
+                        map.setView(latlng, 15);
+                        syncInputs(pos.coords.latitude, pos.coords.longitude);
+                    });
+                });
+            } else if (locateBtn) {
+                locateBtn.disabled = true;
+            }
+
+            setTimeout(function () { map.invalidateSize(); }, 200);
+        });
+    </script>
+}

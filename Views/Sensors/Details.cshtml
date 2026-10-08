@@ -1,0 +1,149 @@
+@model Sensor
+@{
+    ViewData["Title"] = @Model.SensorCode;
+    ViewData["PageTitle"] = "Sensor Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-gear-fill me-2"></i>@Model.SensorCode
+    </h1>
+    <div>
+        @if (User.IsInRole("Admin"))
+        {
+            <a asp-action="Edit" asp-route-id="@Model.SensorId" class="btn btn-sm btn-outline-warning">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+        }
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary ms-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Sensor Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-5 text-muted small">Sensor Code</dt>
+                    <dd class="col-7 mb-2">@Model.SensorCode</dd>
+                    <dt class="col-5 text-muted small">Sensor Type</dt>
+                    <dd class="col-7 mb-2">@Model.SensorType</dd>
+                    <dt class="col-5 text-muted small">Canal</dt>
+                    <dd class="col-7 mb-2">@(Model.Canal?.CanalName ?? "N/A")</dd>
+                    <dt class="col-5 text-muted small">Status</dt>
+                    <dd class="col-7 mb-2">
+                        @{
+                            var statusClass = Model.Status switch
+                            {
+                                "Online" => "success",
+                                "Offline" => "danger",
+                                "Maintenance" => "warning",
+                                _ => "secondary"
+                            };
+                        }
+                        <span class="badge bg-@statusClass">@Model.Status</span>
+                    </dd>
+                    <dt class="col-5 text-muted small">Last Reading</dt>
+                    <dd class="col-7 mb-2">@Model.LastReading.ToString("g")</dd>
+                    <dt class="col-5 text-muted small">Last Communication</dt>
+                    <dd class="col-7 mb-2">@Model.LastCommunication.ToString("g")</dd>
+                    <dt class="col-5 text-muted small">Latitude</dt>
+                    <dd class="col-7 mb-2">@Model.Latitude</dd>
+                    <dt class="col-5 text-muted small">Longitude</dt>
+                    <dd class="col-7 mb-2">@Model.Longitude</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Water Level Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="sensorChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.SensorReadings.Any())
+{
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-table me-2"></i>Recent Readings</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Water Level (m)</th>
+                            <th>Flow Rate</th>
+                            <th>Debris %</th>
+                            <th>Turbidity</th>
+                            <th>Temperature</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.SensorReadings.OrderByDescending(sr => sr.RecordedAt).Take(20))
+                        {
+                            <tr>
+                                <td class="small">@r.RecordedAt.ToString("g")</td>
+                                <td class="small">@r.WaterLevel</td>
+                                <td class="small">@r.FlowRate</td>
+                                <td class="small">@r.DebrisLevel%</td>
+                                <td class="small">@r.Turbidity</td>
+                                <td class="small">@r.Temperature°C</td>
+                                <td class="small">
+                                    <span class="badge bg-secondary">Simulated</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var ctx = document.getElementById('sensorChart').getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [
+                    { label: 'Water Level (m)', data: [], borderColor: '#0d6efd', fill: false },
+                    { label: 'Debris Level (%)', data: [], borderColor: '#dc3545', fill: false, hidden: true }
+                ]},
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: false } },
+                    plugins: {
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+
+            $.get('@Url.Action("ChartData", "SensorReadings", new { canalId = Model.CanalId })', function (data) {
+                var labels = data.readings.map(function (r) { return new Date(r.recordedAt).toLocaleTimeString(); });
+                var water = data.readings.map(function (r) { return r.waterLevel; });
+                var debris = data.readings.map(function (r) { return r.debrisLevel; });
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = water;
+                chart.data.datasets[1].data = debris;
+                chart.update();
+            });
+        });
+    </script>
+}

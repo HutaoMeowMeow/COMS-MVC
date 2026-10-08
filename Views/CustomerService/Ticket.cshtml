@@ -1,0 +1,153 @@
+@model SupportTicketDetailsViewModel
+@inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
+@{
+    ViewData["Title"] = $"Support Ticket #{Model.Ticket.SupportTicketId}";
+    ViewData["PageTitle"] = "Customer Service Chat";
+    ViewBag.CurrentUserId = UserManager.GetUserId(User);
+    ViewBag.IsStaff = false;
+    ViewBag.PostAction = "SendMessage";
+    var isClosed = Model.Ticket.Status == "Closed";
+    var isResolved = Model.Ticket.Status == "Resolved";
+    var isReadOnly = isClosed;
+    var sc = Model.Ticket.Status switch
+    {
+        "Resolved" => "st-resolved",
+        "In Progress" => "st-in-progress",
+        "Open" => "st-pending",
+        "Waiting for User" => "st-under-review",
+        "Closed" => "st-low",
+        _ => "st-pending"
+    };
+    var pc = Model.Ticket.Priority switch
+    {
+        "Urgent" => "st-critical",
+        "High" => "st-high",
+        "Normal" => "st-medium",
+        _ => "st-low"
+    };
+}
+
+<div class="page-head">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="MyTickets" class="btn btn-outline-secondary" aria-label="Back to my requests">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="h3 mb-0">Ticket #@Model.Ticket.SupportTicketId — @Model.Ticket.Subject</h1>
+            <p class="page-sub">@Model.Ticket.Category · Updated @Model.Ticket.UpdatedAt.ToString("g")</p>
+        </div>
+    </div>
+    <span id="support-status-badge" class="status-badge @sc fs-6">
+        <i class="bi @(isClosed ? "bi-lock-fill" : isResolved ? "bi-check-circle-fill" : "bi-chat-dots-fill")"></i>
+        @Model.Ticket.Status
+    </span>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm @(isClosed ? "ticket-closed" : "")">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="bi bi-headset me-2 text-primary"></i>Conversation</h5>
+                <small class="report-meta">
+                    @if (isClosed)
+                    {
+                        <span class="status-dot bg-secondary"></span><text>Closed — read only</text>
+                    }
+                    else
+                    {
+                        <span class="status-dot bg-success"></span><text>Online / Available</text>
+                    }
+                </small>
+            </div>
+            <partial name="_ChatBox" model="Model" />
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header border-bottom">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2 text-primary"></i>Ticket Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row detail-list mb-0">
+                    <dt class="col-sm-5">Ticket #</dt>
+                    <dd class="col-sm-7 fw-semibold">#@Model.Ticket.SupportTicketId</dd>
+                    <dt class="col-sm-5">Category</dt>
+                    <dd class="col-sm-7">@Model.Ticket.Category</dd>
+                    <dt class="col-sm-5">Priority</dt>
+                    <dd class="col-sm-7"><span class="status-badge @pc">@Model.Ticket.Priority</span></dd>
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="status-badge @sc">@Model.Ticket.Status</span></dd>
+                    <dt class="col-sm-5">Created</dt>
+                    <dd class="col-sm-7">@Model.Ticket.CreatedAt.ToString("g")</dd>
+                    <dt class="col-sm-5">Last Updated</dt>
+                    <dd class="col-sm-7">@Model.Ticket.UpdatedAt.ToString("g")</dd>
+                    @if (Model.Ticket.ClosedAt.HasValue)
+                    {
+                        <dt class="col-sm-5">Closed</dt>
+                        <dd class="col-sm-7">@Model.Ticket.ClosedAt.Value.ToString("g")</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm ticket-actions-card">
+            <div class="card-header border-bottom">
+                <h5 class="mb-0"><i class="bi bi-gear me-2 text-primary"></i>Ticket Actions</h5>
+            </div>
+            <div class="card-body d-grid gap-2">
+                @if (!isClosed)
+                {
+                    <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#closeTicketModal">
+                        <i class="bi bi-lock me-1"></i>Close Ticket
+                    </button>
+                    <small class="text-muted">Closing keeps the full conversation history. You can reopen the ticket later if needed.</small>
+                }
+                else
+                {
+                    <div class="alert alert-secondary small mb-0">
+                        <i class="bi bi-lock-fill me-1"></i>This ticket is closed. The conversation is preserved below but no new messages can be sent.
+                    </div>
+                    <form asp-action="ReopenTicket" asp-route-id="@Model.Ticket.SupportTicketId" method="post" class="d-grid">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-primary w-100" data-loading>
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Reopen Ticket
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!isClosed)
+{
+    <div class="modal fade" id="closeTicketModal" tabindex="-1" aria-labelledby="closeTicketModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="closeTicketModalLabel">
+                        <i class="bi bi-exclamation-triangle me-2 text-warning"></i>Close this ticket?
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">Are you sure you want to close this ticket? You will no longer be able to send messages unless the ticket is reopened.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep Open</button>
+                    <form asp-action="CloseTicket" asp-route-id="@Model.Ticket.SupportTicketId" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger" data-loading>
+                            <i class="bi bi-lock me-1"></i>Yes, Close Ticket
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/support-chat.js" asp-append-version="true"></script>
+}

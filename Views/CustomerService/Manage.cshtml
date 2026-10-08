@@ -1,0 +1,246 @@
+@model SupportTicketDetailsViewModel
+@inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
+@{
+    ViewData["Title"] = $"Manage Ticket #{Model.Ticket.SupportTicketId}";
+    ViewData["PageTitle"] = "Manage Support Ticket";
+    ViewBag.CurrentUserId = UserManager.GetUserId(User);
+    ViewBag.IsStaff = true;
+    ViewBag.PostAction = "Reply";
+    var isAdmin = User.IsInRole("Admin");
+    var isClosed = Model.Ticket.Status == "Closed";
+    var sc = Model.Ticket.Status switch
+    {
+        "Resolved" => "st-resolved",
+        "In Progress" => "st-in-progress",
+        "Open" => "st-pending",
+        "Waiting for User" => "st-under-review",
+        "Closed" => "st-low",
+        _ => "st-pending"
+    };
+    var pc = Model.Ticket.Priority switch
+    {
+        "Urgent" => "st-critical",
+        "High" => "st-high",
+        "Normal" => "st-medium",
+        _ => "st-low"
+    };
+}
+
+<div class="page-head">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Tickets" class="btn btn-outline-secondary" aria-label="Back to tickets">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="h3 mb-0">Ticket #@Model.Ticket.SupportTicketId — @Model.Ticket.Subject</h1>
+            <p class="page-sub">
+                <span class="status-badge @pc">@Model.Ticket.Priority priority</span>
+                <span class="ms-1">@Model.Ticket.Category · @(Model.Ticket.User?.FullName ?? "Resident")</span>
+            </p>
+        </div>
+    </div>
+    <span id="support-status-badge" class="status-badge @sc fs-6">
+        <i class="bi @(isClosed ? "bi-lock-fill" : "bi-chat-dots-fill")"></i>
+        @Model.Ticket.Status
+    </span>
+</div>
+
+@if (isClosed)
+{
+    <div class="alert alert-secondary d-flex align-items-center gap-2" role="status">
+        <i class="bi bi-lock-fill"></i>
+        <div><strong>This ticket is closed.</strong> Messaging is disabled. Update the status to reopen it, or delete it permanently (Admin only).</div>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm @(isClosed ? "ticket-closed" : "")">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-chat-dots me-2 text-primary"></i>Conversation</h5>
+                <small class="report-meta">@Model.Messages.Count(m => !m.IsInternal) messages</small>
+            </div>
+            <partial name="_ChatBox" model="Model" />
+        </div>
+
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header border-bottom">
+                <h5 class="mb-0"><i class="bi bi-lock me-2 text-warning"></i>Internal Note <small class="report-meta">— staff only, resident cannot see</small></h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="AddNote" asp-route-id="@Model.Ticket.SupportTicketId" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label visually-hidden" for="internalNote">Internal note</label>
+                        <textarea id="internalNote" name="message" class="form-control" rows="2" maxlength="2000"
+                                  placeholder="Staff-only note, e.g. user may have a browser caching issue..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-outline-warning" data-loading>
+                        <i class="bi bi-journal-plus me-1"></i>Save Internal Note
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header border-bottom">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2 text-primary"></i>Ticket Details</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row detail-list mb-0">
+                    <dt class="col-sm-5">Ticket #</dt>
+                    <dd class="col-sm-7 fw-semibold">#@Model.Ticket.SupportTicketId</dd>
+                    <dt class="col-sm-5">Resident</dt>
+                    <dd class="col-sm-7">@(Model.Ticket.User?.FullName ?? "—") <span class="text-muted small">(@Model.Ticket.User?.UserName)</span></dd>
+                    <dt class="col-sm-5">Status</dt>
+                    <dd class="col-sm-7"><span class="status-badge @sc">@Model.Ticket.Status</span></dd>
+                    <dt class="col-sm-5">Priority</dt>
+                    <dd class="col-sm-7"><span class="status-badge @pc">@Model.Ticket.Priority</span></dd>
+                    <dt class="col-sm-5">Category</dt>
+                    <dd class="col-sm-7">@Model.Ticket.Category</dd>
+                    <dt class="col-sm-5">Assigned</dt>
+                    <dd class="col-sm-7">@(Model.Ticket.AssignedToUser?.FullName ?? "Unassigned")</dd>
+                    <dt class="col-sm-5">Created</dt>
+                    <dd class="col-sm-7">@Model.Ticket.CreatedAt.ToString("g")</dd>
+                    <dt class="col-sm-5">Updated</dt>
+                    <dd class="col-sm-7">@Model.Ticket.UpdatedAt.ToString("g")</dd>
+                    @if (Model.Ticket.ClosedAt.HasValue)
+                    {
+                        <dt class="col-sm-5">Closed</dt>
+                        <dd class="col-sm-7">@Model.Ticket.ClosedAt.Value.ToString("g")</dd>
+                    }
+                </dl>
+                <hr />
+                <div class="d-grid gap-2">
+                    <div class="ticket-action-group">
+                        <span class="ticket-action-label">Assign</span>
+                        <form asp-action="AssignToMe" asp-route-id="@Model.Ticket.SupportTicketId" method="post" class="d-grid">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-primary w-100" data-loading>
+                                <i class="bi bi-person-check me-1"></i>Assign to Me
+                            </button>
+                        </form>
+                    </div>
+                    <div class="ticket-action-group">
+                        <span class="ticket-action-label">Close</span>
+                        @if (!isClosed)
+                        {
+                            <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal" data-bs-target="#staffCloseModal">
+                                <i class="bi bi-lock me-1"></i>Close Ticket
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert alert-secondary small mb-0 py-2">
+                                <i class="bi bi-lock-fill me-1"></i>Closed. Use Update below to reopen.
+                            </div>
+                        }
+                    </div>
+                    @if (isAdmin)
+                    {
+                        <div class="ticket-action-group ticket-action-danger">
+                            <span class="ticket-action-label">Danger zone</span>
+                            <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#deleteTicketModal">
+                                <i class="bi bi-trash3 me-1"></i>Delete Ticket
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header border-bottom">
+                <h5 class="mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>Update Ticket</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="UpdateStatus" asp-route-id="@Model.Ticket.SupportTicketId" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label" for="status">Status <span class="text-danger" aria-hidden="true">*</span></label>
+                        <select id="status" name="status" class="form-select" asp-items="@(ViewBag.Statuses as SelectList)"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="priority">Priority</label>
+                        <select id="priority" name="priority" class="form-select" asp-items="@(ViewBag.Priorities as SelectList)"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="assigneeId">Assign to</label>
+                        <select id="assigneeId" name="assigneeId" class="form-select" asp-items="@(ViewBag.StaffList as SelectList)">
+                            <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" data-loading>
+                        <i class="bi bi-check-lg me-1"></i>Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!isClosed)
+{
+    <div class="modal fade" id="staffCloseModal" tabindex="-1" aria-labelledby="staffCloseModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="staffCloseModalLabel">
+                        <i class="bi bi-lock me-2 text-warning"></i>Close ticket #@Model.Ticket.SupportTicketId?
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">The ticket and its full conversation history will be kept. Messaging will be disabled until the ticket is reopened.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form asp-action="CloseTicketStaff" asp-route-id="@Model.Ticket.SupportTicketId" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-warning" data-loading>
+                            <i class="bi bi-lock me-1"></i>Close Ticket
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isAdmin)
+{
+    <div class="modal fade" id="deleteTicketModal" tabindex="-1" aria-labelledby="deleteTicketModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content border-danger">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger" id="deleteTicketModalLabel">
+                        <i class="bi bi-trash3 me-2"></i>Permanently delete ticket #@Model.Ticket.SupportTicketId?
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger small">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        This permanently deletes the ticket and its conversation history. This action cannot be undone.
+                    </div>
+                    <p class="small text-muted mb-0">Admin-only action. Closing keeps history; deleting removes it forever.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form asp-action="DeleteTicket" asp-route-id="@Model.Ticket.SupportTicketId" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger" data-loading>
+                            <i class="bi bi-trash3 me-1"></i>Yes, Delete Permanently
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/support-chat.js" asp-append-version="true"></script>
+}

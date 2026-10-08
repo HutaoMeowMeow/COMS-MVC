@@ -1,0 +1,517 @@
+using Microsoft.AspNetCore.Mvc.Rendering;
+
+namespace COMS_MVC.Controllers
+{
+    [Authorize]
+    public class AnnouncementsController : Controller
+    {
+        private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IWebHostEnvironment _env;
+
+        private static readonly List<SelectListItem> Audiences = new()
+        {
+            new SelectListItem("All Users", "All"),
+            new SelectListItem("Admin", "Admin"),
+            new SelectListItem("LGU", "LGU"),
+            new SelectListItem("Barangay", "Barangay"),
+            new SelectListItem("Maintenance", "Maintenance"),
+            new SelectListItem("Resident", "Resident"),
+            new SelectListItem("LGU & Barangay", "LGU_Barangay"),
+            new SelectListItem("Maintenance Personnel", "Maintenance_Resident")
+        };
+
+        public AnnouncementsController(ApplicationDbContext context,
+            UserManager<ApplicationUser> userManager,
+            IWebHostEnvironment env)
+        {
+            _context = context;
+            _userManager = userManager;
+            _env = env;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Index(string? audience = null)
+        {
+            var query = _context.Announcements
+                .Include(a => a.PostedBy)
+                .AsQueryable();
+
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null)
+            {
+                return Challenge();
+            }
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+            var isAdmin = userRoles.Contains("Admin");
+            var isLGU = userRoles.Contains("LGU");
+
+            if (!isAdmin && !isLGU)
+            {
+                if (audience != null)
+                {
+                    query = query.Where(a => a.TargetAudience == "All" || a.TargetAudience == audience);
+                }
+                else
+                {
+                    var primaryRole = userRoles.FirstOrDefault() ?? "All";
+                    query = query.Where(a => a.TargetAudience == "All" ||
+                                             a.TargetAudience == primaryRole ||
+                                             a.TargetAudience == GetAudienceGroup(primaryRole));
+                }
+            }
+
+            ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", audience ?? "All");
+
+            var announcements = await query.OrderByDescending(a => a.CreatedAt).ToListAsync();
+            return View(announcements);
+        }
+
+        private static string GetAudienceGroup(string role)
+        {
+            return role switch
+            {
+                "LGU" => "LGU_Barangay",
+                "Barangay" => "LGU_Barangay",
+                "Maintenance" => "Maintenance_Resident",
+                "Resident" => "Maintenance_Resident",
+                _ => "All"
+            };
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Details(int id)
+        {
+            var announcement = await _context.Announcements
+                .Include(a => a.PostedBy)
+                .FirstOrDefaultAsync(a => a.AnnouncementId == id);
+
+            if (announcement == null)
+            {
+                return NotFound();
+            }
+
+            if (!User.IsInRole("Admin") && !User.IsInRole("LGU"))
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null)
+                {
+                    return Challenge();
+                }
+                var userRoles = await _userManager.GetRolesAsync(currentUser);
+                var primaryRole = userRoles.FirstOrDefault() ?? "All";
+
+                if (announcement.TargetAudience != "All" &&
+                    announcement.TargetAudience != primaryRole &&
+                    announcement.TargetAudience != GetAudienceGroup(primaryRole))
+                {
+                    return Forbid();
+                }
+            }
+
+            return View(announcement);
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin,LGU")]
+        public IActionResult Create()
+        {
+            ViewBag.Audiences = new SelectList(Audiences, "Value", "Text");
+            return View(new Announcement { CreatedAt = DateTime.UtcNow });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,LGU")]
+        public async Task<IActionResult> Create(Announcement announcement, IFormFile? imageFile)
+        {
+            announcement.Title = (announcement.Title ?? string.Empty).Trim();
+            announcement.Content = (announcement.Content ?? string.Empty).Trim();
+            announcement.TargetAudience = string.IsNullOrWhiteSpace(announcement.TargetAudience) ? "All" : announcement.TargetAudience.Trim();
+            announcement.Location = string.IsNullOrWhiteSpace(announcement.Location) ? null : announcement.Location.Trim();
+
+            if (!Audiences.Any(a => a.Value == announcement.TargetAudience))
+            {
+                ModelState.AddModelError(nameof(announcement.TargetAudience), "Please select a valid audience.");
+            }
+            if (imageFile != null && imageFile.Length > 5 * 1024 * 1024)
+            {
+                ModelState.AddModelError("imageFile", "Image size must be less than 5MB.");
+            }
+            else if (imageFile != null && imageFile.Length > 0)
+            {
+                var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif" };
+                if (!allowedTypes.Contains(imageFile.ContentType))
+                {
+                    ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
+
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return Challenge();
+            }
+            announcement.PostedByUserId = userId;
+            announcement.CreatedAt = DateTime.UtcNow;
+
+            if (imageFile != null && imageFile.Length > 0)
+            {
+                if (string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    ModelState.AddModelError("imageFile", "File uploads are not configured on this server.");
+                    ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                    return View(announcement);
+                }
+                try
+                {
+                    var ext = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+                    if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".gif")
+                    {
+                        ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                        ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                        return View(announcement);
+                    }
+                    var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "announcements");
+                    Directory.CreateDirectory(uploadsFolder);
+
+                    var uniqueName = $"announce_{Guid.NewGuid():N}{ext}";
+                    var filePath = Path.Combine(uploadsFolder, uniqueName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await imageFile.CopyToAsync(stream);
+                    }
+                    announcement.ImagePath = $"/uploads/announcements/{uniqueName}";
+                }
+                catch (Exception)
+                {
+                    ModelState.AddModelError("imageFile", "Could not save the image. Please try again.");
+                    ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                    return View(announcement);
+                }
+            }
+
+            try
+            {
+                _context.Announcements.Add(announcement);
+                await _context.SaveChangesAsync();
+
+                try { await CreateNotificationForAnnouncementAsync(announcement); } catch { }
+
+                TempData["SuccessMessage"] = "Announcement posted successfully.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception)
+            {
+                if (!string.IsNullOrEmpty(announcement.ImagePath) && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var saved = Path.Combine(_env.WebRootPath, announcement.ImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(saved)) System.IO.File.Delete(saved);
+                    }
+                    catch { }
+                }
+                ModelState.AddModelError(string.Empty, "Could not post the announcement. Please check your input and try again.");
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin,LGU")]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement == null)
+            {
+                return NotFound();
+            }
+
+            ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+            return View(announcement);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,LGU")]
+        public async Task<IActionResult> Edit(int id, Announcement announcement, IFormFile? imageFile)
+        {
+            if (id != announcement.AnnouncementId)
+            {
+                return NotFound();
+            }
+
+            announcement.Title = (announcement.Title ?? string.Empty).Trim();
+            announcement.Content = (announcement.Content ?? string.Empty).Trim();
+            announcement.TargetAudience = string.IsNullOrWhiteSpace(announcement.TargetAudience) ? "All" : announcement.TargetAudience.Trim();
+            announcement.Location = string.IsNullOrWhiteSpace(announcement.Location) ? null : announcement.Location.Trim();
+
+            if (!Audiences.Any(a => a.Value == announcement.TargetAudience))
+            {
+                ModelState.AddModelError(nameof(announcement.TargetAudience), "Please select a valid audience.");
+            }
+            if (imageFile != null && imageFile.Length > 5 * 1024 * 1024)
+            {
+                ModelState.AddModelError("imageFile", "Image size must be less than 5MB.");
+            }
+            else if (imageFile != null && imageFile.Length > 0)
+            {
+                var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif" };
+                if (!allowedTypes.Contains(imageFile.ContentType))
+                {
+                    ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
+
+            var existing = await _context.Announcements.AsNoTracking().FirstOrDefaultAsync(a => a.AnnouncementId == id);
+            if (existing == null)
+            {
+                return NotFound();
+            }
+
+            string? newImagePath = null;
+            try
+            {
+                if (imageFile != null && imageFile.Length > 0)
+                {
+                    if (string.IsNullOrEmpty(_env.WebRootPath))
+                    {
+                        ModelState.AddModelError("imageFile", "File uploads are not configured on this server.");
+                        ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                        return View(announcement);
+                    }
+                    var ext = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+                    if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".gif")
+                    {
+                        ModelState.AddModelError("imageFile", "Only JPG, PNG, and GIF images are allowed.");
+                        ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                        return View(announcement);
+                    }
+                    var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "announcements");
+                    Directory.CreateDirectory(uploadsFolder);
+
+                    var uniqueName = $"announce_{Guid.NewGuid():N}{ext}";
+                    var filePath = Path.Combine(uploadsFolder, uniqueName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await imageFile.CopyToAsync(stream);
+                    }
+                    newImagePath = $"/uploads/announcements/{uniqueName}";
+                    announcement.ImagePath = newImagePath;
+                }
+                else
+                {
+                    announcement.ImagePath = existing.ImagePath;
+                }
+
+                announcement.CreatedAt = existing.CreatedAt;
+                announcement.PostedByUserId = existing.PostedByUserId;
+
+                _context.Update(announcement);
+                await _context.SaveChangesAsync();
+
+                if (newImagePath != null && !string.IsNullOrEmpty(existing.ImagePath) && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var oldPath = Path.Combine(_env.WebRootPath, existing.ImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
+                    }
+                    catch { }
+                }
+
+                TempData["SuccessMessage"] = "Announcement updated successfully.";
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (newImagePath != null && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var saved = Path.Combine(_env.WebRootPath, newImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(saved)) System.IO.File.Delete(saved);
+                    }
+                    catch { }
+                }
+                ModelState.AddModelError(string.Empty, "The announcement was modified by another user. Please refresh and try again.");
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
+            catch (Exception)
+            {
+                if (newImagePath != null && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var saved = Path.Combine(_env.WebRootPath, newImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(saved)) System.IO.File.Delete(saved);
+                    }
+                    catch { }
+                }
+                ModelState.AddModelError(string.Empty, "Could not save the announcement. Please check your input and try again.");
+                ViewBag.Audiences = new SelectList(Audiences, "Value", "Text", announcement.TargetAudience);
+                return View(announcement);
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin,LGU")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var announcement = await _context.Announcements
+                .Include(a => a.PostedBy)
+                .FirstOrDefaultAsync(a => a.AnnouncementId == id);
+
+            if (announcement == null)
+            {
+                return NotFound();
+            }
+
+            return View(announcement);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,LGU")]
+        public async Task<IActionResult> Delete(int id, IFormCollection collection)
+        {
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement == null)
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                if (!string.IsNullOrEmpty(announcement.ImagePath) && !string.IsNullOrEmpty(_env.WebRootPath))
+                {
+                    try
+                    {
+                        var filePath = Path.Combine(_env.WebRootPath, announcement.ImagePath.TrimStart('/'));
+                        if (System.IO.File.Exists(filePath))
+                        {
+                            System.IO.File.Delete(filePath);
+                        }
+                    }
+                    catch
+                    {
+                        // File cleanup is best-effort.
+                    }
+                }
+
+                _context.Announcements.Remove(announcement);
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Announcement deleted successfully.";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] = "Could not delete the announcement. Please try again.";
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>
+        /// Admin-only bulk delete of ALL announcements. POST + anti-forgery only,
+        /// never GET. Role is enforced server-side via Authorize; the button is
+        /// additionally hidden from non-admins in the UI (defense in depth).
+        /// Associated uploaded image files under wwwroot/uploads/announcements
+        /// are removed best-effort. Users, reports, canals, tickets and
+        /// notifications are never touched (no FK from them to announcements).
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteAll()
+        {
+            var announcements = await _context.Announcements.ToListAsync();
+            if (announcements.Count == 0)
+            {
+                TempData["AlertMessage"] = "No announcements to delete.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Capture image paths before removing rows. Only files inside the
+            // announcements upload folder are ever deleted; missing files are
+            // skipped silently.
+            var imagePaths = announcements
+                .Where(a => !string.IsNullOrEmpty(a.ImagePath))
+                .Select(a => a.ImagePath!)
+                .ToList();
+
+            _context.Announcements.RemoveRange(announcements);
+            await _context.SaveChangesAsync();
+
+            if (!string.IsNullOrEmpty(_env.WebRootPath))
+            {
+                string uploadsRoot;
+                try
+                {
+                    uploadsRoot = Path.GetFullPath(Path.Combine(_env.WebRootPath, "uploads", "announcements"));
+                }
+                catch
+                {
+                    uploadsRoot = string.Empty;
+                }
+                foreach (var imagePath in imagePaths)
+                {
+                    try
+                    {
+                        var fullPath = Path.GetFullPath(Path.Combine(_env.WebRootPath,
+                            imagePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
+                        if (!string.IsNullOrEmpty(uploadsRoot)
+                            && fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)
+                            && System.IO.File.Exists(fullPath))
+                        {
+                            System.IO.File.Delete(fullPath);
+                        }
+                    }
+                    catch
+                    {
+                        // File cleanup is best-effort; DB rows are already gone.
+                    }
+                }
+            }
+
+            TempData["SuccessMessage"] = "All announcements have been deleted successfully.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        private async Task CreateNotificationForAnnouncementAsync(Announcement announcement)
+        {
+            var notificationService = HttpContext.RequestServices.GetRequiredService<INotificationService>();
+
+            var targetRoles = announcement.TargetAudience == "All"
+                ? new[] { "Admin", "LGU", "Barangay", "Maintenance", "Resident" }
+                : announcement.TargetAudience == "LGU_Barangay"
+                    ? new[] { "LGU", "Barangay" }
+                    : announcement.TargetAudience == "Maintenance_Resident"
+                        ? new[] { "Maintenance", "Resident" }
+                        : new[] { announcement.TargetAudience };
+
+            foreach (var role in targetRoles)
+            {
+                await notificationService.CreateNotificationForRoleAsync(
+                    role,
+                    "New Announcement",
+                    announcement.Title,
+                    "Announcement",
+                    null,
+                    null);
+            }
+        }
+    }
+}

@@ -1,0 +1,268 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Resident Dashboard";
+    ViewData["PageTitle"] = "Resident Dashboard";
+    var hour = DateTime.Now.Hour;
+    var greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+}
+
+<div class="card hero-card mb-4 reveal">
+    <div class="card-body p-4 p-lg-5">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <span class="hero-eyebrow mb-2"><i class="bi bi-droplet-fill"></i>Canal Obstruction Maintenance System</span>
+                <h2 class="mb-2">@greeting, @Model.UserName</h2>
+                <p class="mb-4">Help keep our community clean and flood-ready. Report canal and drainage problems in your area so your LGU can respond faster.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a asp-controller="Reports" asp-action="Create" class="btn btn-light btn-lg px-4 btn-cta-attn">
+                        <i class="bi bi-plus-circle-fill me-2"></i>Report a Canal Problem
+                    </a>
+                    <a asp-controller="Reports" asp-action="MyReports" class="btn btn-outline-light px-4">
+                        <i class="bi bi-folder2-open me-2"></i>My Reports
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 d-none d-lg-flex justify-content-end gap-2">
+                <span class="hero-icon-tile"><i class="bi bi-water"></i></span>
+                <span class="hero-icon-tile"><i class="bi bi-people-fill"></i></span>
+                <span class="hero-icon-tile"><i class="bi bi-shield-check"></i></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 g-lg-4 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card" style="--i:0">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon stat-tint-blue"><i class="bi bi-journal-text"></i></span>
+                <div>
+                    <div class="stat-num">@Model.MyReportsCount</div>
+                    <div class="stat-label">My Reports</div>
+                    <div class="stat-sub">Submitted by you</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card" style="--i:1">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon stat-tint-amber"><i class="bi bi-hourglass-split"></i></span>
+                <div>
+                    <div class="stat-num">@Model.MyPendingReportsCount</div>
+                    <div class="stat-label">Pending Review</div>
+                    <div class="stat-sub">Awaiting LGU action</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card" style="--i:2">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon stat-tint-red"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                <div>
+                    <div class="stat-num">@Model.ActiveAlerts</div>
+                    <div class="stat-label">Active Alerts</div>
+                    <div class="stat-sub">In your area</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card" style="--i:3">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon stat-tint-green"><i class="bi bi-cloud-rain-heavy"></i></span>
+                <div>
+                    <div class="stat-num">@Model.HighRiskCanals</div>
+                    <div class="stat-label">High-Risk Canals</div>
+                    <div class="stat-sub">Flood watch</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm h-100 reveal" style="--i:1">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Reports</h5>
+                <a asp-controller="Reports" asp-action="MyReports" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentReports.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var report in Model.RecentReports.Take(5))
+                        {
+                            var rc = report.Status switch
+                            {
+                                "Resolved" => "st-resolved",
+                                "In Progress" => "st-in-progress",
+                                "Pending" => "st-pending",
+                                "Under Review" => "st-under-review",
+                                "Verified" => "st-verified",
+                                "Assigned" => "st-assigned",
+                                "Rejected" => "st-rejected",
+                                _ => "st-pending"
+                            };
+                            <li class="list-group-item border-0 py-2 px-0">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="min-w-0">
+                                        <h6 class="mb-1 fw-medium text-truncate">@report.Title</h6>
+                                        <small class="report-meta d-block">@(report.Canal?.CanalName ?? "Location-pinned report") · @report.ReportType · @report.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                    </div>
+                                    <span class="status-badge @rc flex-shrink-0">@report.Status</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <div class="empty-icon"><i class="bi bi-journal-plus"></i></div>
+                        <h6>No reports yet</h6>
+                        <p>You haven't submitted any canal problem reports yet. Spotted a blockage? Let your LGU know.</p>
+                        <a asp-controller="Reports" asp-action="Create" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i>Report a Problem
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm h-100 reveal" style="--i:2">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-megaphone me-2 text-info"></i>Announcements</h5>
+                <a asp-controller="Announcements" asp-action="Index" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.Announcements.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var ann in Model.Announcements)
+                        {
+                            <li class="list-group-item border-0 py-2 px-0">
+                                <h6 class="mb-1 fw-medium">@ann.Title</h6>
+                                <p class="report-meta mb-1 text-truncate">@ann.Content</p>
+                                <small class="report-meta"><i class="bi bi-calendar3 me-1"></i>@ann.CreatedAt.ToString("MMM dd, yyyy")</small>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <div class="empty-icon"><i class="bi bi-megaphone"></i></div>
+                        <h6>No announcements</h6>
+                        <p>There are no community announcements right now. Check back later.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm reveal" style="--i:3">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Active Alerts &amp; Advisories</h5>
+                <a asp-controller="Alerts" asp-action="Index" class="text-decoration-none small">View All</a>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentAlerts.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var alert in Model.RecentAlerts.Take(5))
+                        {
+                            var sev = alert.Severity switch
+                            {
+                                "Critical" => "st-critical",
+                                "High" => "st-high",
+                                "Medium" => "st-medium",
+                                _ => "st-low"
+                            };
+                            <li class="list-group-item border-0 py-2 px-0">
+                                <div class="d-flex align-items-start gap-2">
+                                    <span class="status-badge @sev flex-shrink-0">@alert.Severity</span>
+                                    <div class="min-w-0">
+                                        <h6 class="mb-1 fw-medium">@alert.Title</h6>
+                                        <small class="report-meta d-block">@(alert.Canal?.CanalName ?? "General advisory") · Updated @(Math.Round((DateTime.UtcNow - alert.DetectedAt).TotalMinutes)) min ago</small>
+                                    </div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <div class="empty-icon"><i class="bi bi-check-circle"></i></div>
+                        <h6>All clear</h6>
+                        <p>No active alerts in your area right now.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm reveal" style="--i:4">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-water me-2 text-primary"></i>Canal Water Levels</h5>
+                <small class="report-meta">Live sensor readings</small>
+            </div>
+            <div class="card-body">
+                <div id="chartSkeleton" class="d-flex flex-column gap-2" aria-hidden="true">
+                    <div class="skeleton" style="height: 22px; width: 40%;"></div>
+                    <div class="skeleton" style="height: 22px; width: 65%;"></div>
+                    <div class="skeleton" style="height: 22px; width: 52%;"></div>
+                </div>
+                <canvas id="residentChart" height="100" class="d-none"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var ctx = document.getElementById('residentChart').getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: [], datasets: [{
+                    label: 'Water Level (m)', data: [], backgroundColor: 'rgba(43, 108, 176, 0.75)',
+                    borderRadius: 4
+                }]},
+                options: { responsive: true, indexAxis: 'y',
+                    scales: { x: { beginAtZero: true } },
+                    plugins: { legend: { display: false } } }
+            });
+            function loadData(first) {
+                $.get('/SensorReadings/LatestReadingsJson', function (data) {
+                    chart.data.labels = data.map(function (r) { return r.canalName; });
+                    chart.data.datasets[0].data = data.map(function (r) { return r.waterLevel; });
+                    chart.update();
+                    if (first) {
+                        var skel = document.getElementById('chartSkeleton');
+                        var canvas = document.getElementById('residentChart');
+                        if (skel) skel.classList.add('d-none');
+                        if (canvas) {
+                            canvas.classList.remove('d-none');
+                            canvas.classList.add('chart-ready');
+                        }
+                    }
+                });
+            }
+            loadData(true);
+            setInterval(function () { loadData(false); }, 30000);
+        });
+    </script>
+}

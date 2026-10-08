@@ -1,0 +1,94 @@
+@model List<SupportTicket>
+@{
+    ViewData["Title"] = "My Support Requests";
+    ViewData["PageTitle"] = "My Support Requests";
+    var unreadByTicket = ViewBag.UnreadByTicket as Dictionary<int, int> ?? new Dictionary<int, int>();
+}
+
+<div class="page-head">
+    <div>
+        <h1 class="h3"><i class="bi bi-folder2-open me-2 page-icon"></i>My Support Requests</h1>
+        <p class="page-sub">Track your help requests and chat with our support team.</p>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>New Request
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 support-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Subject</th>
+                        <th>Category</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Updated</th>
+                        <th><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        @foreach (var ticket in Model)
+                        {
+                            var sc = ticket.Status switch
+                            {
+                                "Resolved" => "st-resolved",
+                                "In Progress" => "st-in-progress",
+                                "Open" => "st-pending",
+                                "Waiting for User" => "st-under-review",
+                                "Closed" => "st-low",
+                                _ => "st-pending"
+                            };
+                            var pc = ticket.Priority switch
+                            {
+                                "Urgent" => "st-critical",
+                                "High" => "st-high",
+                                "Normal" => "st-medium",
+                                _ => "st-low"
+                            };
+                            <tr>
+                                <td class="small" data-label="#">#@ticket.SupportTicketId</td>
+                                <td class="fw-medium" data-label="Subject">
+                                    @ticket.Subject
+                                    @if (unreadByTicket.TryGetValue(ticket.SupportTicketId, out var u) && u > 0)
+                                    {
+                                        <span class="badge bg-danger ms-1">@u new</span>
+                                    }
+                                </td>
+                                <td class="small" data-label="Category">@ticket.Category</td>
+                                <td data-label="Priority"><span class="status-badge @pc">@ticket.Priority</span></td>
+                                <td data-label="Status"><span class="status-badge @sc">@ticket.Status</span></td>
+                                <td class="small text-muted" data-label="Updated">@ticket.UpdatedAt.ToString("MMM dd, yyyy")</td>
+                                <td class="support-action">
+                                    <a asp-action="Ticket" asp-route-id="@ticket.SupportTicketId" class="btn btn-sm btn-outline-primary" aria-label="Open ticket @ticket.SupportTicketId">
+                                        <i class="bi bi-chat-dots me-1"></i>Open
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="py-0">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-headset"></i></div>
+                                    <h6>No support requests yet</h6>
+                                    <p>Submit your first request and our support team will reply here.</p>
+                                    <a asp-action="Create" class="btn btn-primary">
+                                        <i class="bi bi-plus-circle me-1"></i>New Request
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

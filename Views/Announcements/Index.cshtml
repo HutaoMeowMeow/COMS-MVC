@@ -1,0 +1,123 @@
+@model IEnumerable<Announcement>
+@{
+    ViewData["Title"] = "Announcements";
+    ViewData["PageTitle"] = "Announcements";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-megaphone me-2"></i>Announcements
+    </h1>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (User.IsInRole("Admin") || User.IsInRole("LGU"))
+        {
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>New Announcement
+            </a>
+        }
+        @if (User.IsInRole("Admin") && Model.Any())
+        {
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
+                <i class="bi bi-trash3 me-1"></i>Delete All Announcements
+            </button>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    @if (Model.Any())
+    {
+        @foreach (var ann in Model)
+        {
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    @if (!string.IsNullOrEmpty(ann.ImagePath))
+                    {
+                        @* Uploads live on the host's ephemeral disk: a missing file
+                           must fail gracefully instead of pulling an HTML error
+                           page into the image slot. *@
+                        <img src="@ann.ImagePath" class="card-img-top" style="height: 150px; object-fit: cover;"
+                             alt="@ann.Title" loading="lazy" onerror="this.style.display='none'" />
+                    }
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@ann.Title</h5>
+                        <p class="card-text text-muted small flex-grow-1">
+                            @(((ann.Content ?? string.Empty).Length > 120) ? (ann.Content ?? string.Empty).Substring(0, 120) + "..." : (ann.Content ?? string.Empty))
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted">
+                                <i class="bi bi-person me-1"></i>@ann.PostedBy?.FullName
+                                <i class="bi bi-clock me-1"></i>@ann.CreatedAt.ToString("MMM dd")
+                            </small>
+                            <span class="badge bg-info-subtle text-info small">@ann.TargetAudience</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-top">
+                        <a asp-action="Details" asp-route-id="@ann.AnnouncementId" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye me-1"></i>Read
+                        </a>
+                        @if (User.IsInRole("Admin") || User.IsInRole("LGU"))
+                        {
+                            <a asp-action="Edit" asp-route-id="@ann.AnnouncementId" class="btn btn-sm btn-outline-warning">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a asp-action="Delete" asp-route-id="@ann.AnnouncementId" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-megaphone display-1 text-muted mb-3"></i>
+                    <h4 class="text-muted">No Announcements</h4>
+                    <p class="text-muted">No announcements have been posted yet.</p>
+                    @if (User.IsInRole("Admin") || User.IsInRole("LGU"))
+                    {
+                        <a asp-action="Create" class="btn btn-primary">
+                            <i class="bi bi-plus-lg me-1"></i>Create Announcement
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (User.IsInRole("Admin") && Model.Any())
+{
+    <div class="modal fade" id="deleteAllModal" tabindex="-1" aria-labelledby="deleteAllModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content border-danger">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger" id="deleteAllModalLabel">
+                        <i class="bi bi-trash3 me-2"></i>Delete All Announcements?
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger small">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        This will permanently delete all announcements (@Model.Count() in total). This action cannot be undone.
+                    </div>
+                    <p class="small text-muted mb-0">Associated announcement images will also be removed. Users, reports, canals, tickets and other records are not affected.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form asp-action="DeleteAll" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash3 me-1"></i>Yes, Delete All
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}

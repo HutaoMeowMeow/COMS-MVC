@@ -1,0 +1,82 @@
+@model IEnumerable<FloodRiskAssessment>
+@{
+    ViewData["Title"] = "Flood Risk Assessment";
+    ViewData["PageTitle"] = "Flood Risk Assessment";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-bell-fill me-2 text-info"></i>Flood Risk Assessment
+    </h1>
+    @if (User.IsInRole("Admin") || User.IsInRole("LGU"))
+    {
+        <a asp-action="AssessAll" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-clockwise me-1"></i>Re-assess All
+        </a>
+    }
+</div>
+
+<p class="text-muted small mb-3">
+    <i class="bi bi-info-circle me-1"></i>
+    Risk scores are calculated using a transparent rule-based model considering water levels,
+    flow rates, debris levels, and recent alerts. Not a trained ML model.
+</p>
+
+<div class="row g-4">
+    @if (Model.Any())
+    {
+        @foreach (var risk in Model)
+        {
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between">
+                        <h6 class="mb-0 fw-medium">@risk.Canal?.CanalName</h6>
+                        <span class="badge bg-@(risk.RiskLevel == "Critical" ? "danger" : risk.RiskLevel == "High" ? "warning" : risk.RiskLevel == "Moderate" ? "info" : "success")">@risk.RiskLevel</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="progress flex-grow-1 me-3" style="height: 24px;">
+                                <div class="progress-bar bg-@(risk.RiskLevel == "Critical" ? "danger" : risk.RiskLevel == "High" ? "warning" : risk.RiskLevel == "Moderate" ? "info" : "success")"
+                                     role="progressbar" style="width: @(risk.RiskScore)%">
+                                </div>
+                            </div>
+                            <span class="fs-5 fw-bold">@risk.RiskScore/100</span>
+                        </div>
+                        <div class="small text-muted">
+                            <i class="bi bi-clock me-1"></i>Assessed: @risk.AssessmentDate.ToString("MMM dd, HH:mm")
+                        </div>
+                        <div class="small text-muted">
+                            <i class="bi bi-hourglass me-1"></i>Valid until: @risk.ValidUntil.ToString("MMM dd, HH:mm")
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-top">
+                        <a asp-action="Details" asp-route-canalId="@risk.CanalId" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye me-1"></i>Details
+                        </a>
+                        @if (User.IsInRole("Admin") || User.IsInRole("LGU") || User.IsInRole("Barangay") || User.IsInRole("Maintenance"))
+                        {
+                            <form asp-action="Assess" method="post" asp-route-canalId="@risk.CanalId" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-arrow-clockwise"></i> Re-assess
+                                </button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-bell-fill display-1 text-muted mb-3"></i>
+                    <h4 class="text-muted">No Risk Assessments Available</h4>
+                    <p class="text-muted">Risk assessments will be generated automatically or can be triggered manually.</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>

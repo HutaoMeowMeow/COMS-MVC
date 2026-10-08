@@ -1,0 +1,145 @@
+@model DashboardViewModel
+
+<div class="row g-3 mb-4">
+    @if (Model.CurrentRole == "Admin")
+    {
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-2">
+                            <i class="bi bi-water fs-4 text-primary"></i>
+                        </div>
+                        <div class="text-start">
+                            <div class="text-muted small fw-medium">CANALS</div>
+                            <div class="display-5 fw-bold">@Model.TotalCanals</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <div class="bg-info bg-opacity-10 rounded-circle p-2 me-2">
+                            <i class="bi bi-gear-fill fs-4 text-info"></i>
+                        </div>
+                        <div class="text-start">
+                            <div class="text-muted small fw-medium">SENSORS</div>
+                            <div class="display-5 fw-bold">@Model.TotalSensors</div>
+                        </div>
+                    </div>
+                    <div class="small text-muted">
+                        <span class="text-success fw-medium">@Model.OnlineSensors</span> online /
+                        <span class="text-danger fw-medium">@Model.OfflineSensors</span> offline
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="col-6 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-2">
+                            <i class="bi bi-water fs-4 text-primary"></i>
+                        </div>
+                        <div class="text-start">
+                            <div class="text-muted small fw-medium">CANALS</div>
+                            <div class="display-5 fw-bold">@Model.TotalCanals</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <div class="bg-info bg-opacity-10 rounded-circle p-2 me-2">
+                            <i class="bi bi-gear-fill fs-4 text-info"></i>
+                        </div>
+                        <div class="text-start">
+                            <div class="text-muted small fw-medium">SENSORS</div>
+                            <div class="display-5 fw-bold">@Model.TotalSensors</div>
+                        </div>
+                    </div>
+                    <div class="small text-muted">
+                        <span class="text-success fw-medium">@Model.OnlineSensors</span> online /
+                        <span class="text-danger fw-medium">@Model.OfflineSensors</span> offline
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-center mb-2">
+                    <div class="bg-danger bg-opacity-10 rounded-circle p-2 me-2">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 text-danger"></i>
+                    </div>
+                    <div class="text-start">
+                        <div class="text-muted small fw-medium">ACTIVE ALERTS</div>
+                        <div class="display-5 fw-bold">@Model.ActiveAlerts</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-center mb-2">
+                    <div class="bg-warning bg-opacity-10 rounded-circle p-2 me-2">
+                        <i class="bi bi-journal-text fs-4 text-warning"></i>
+                    </div>
+                    <div class="text-start">
+                        <div class="text-muted small fw-medium">PENDING REPORTS</div>
+                        <div class="display-5 fw-bold">@Model.PendingReports</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-center mb-2">
+                    <div class="bg-info bg-opacity-10 rounded-circle p-2 me-2">
+                        <i class="bi bi-bell-fill fs-4 text-info"></i>
+                    </div>
+                    <div class="text-start">
+                        <div class="text-muted small fw-medium">HIGH RISK CANALS</div>
+                        <div class="display-5 fw-bold">@Model.HighRiskCanals</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.CurrentRole == "Admin")
+    {
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <div class="bg-success bg-opacity-10 rounded-circle p-2 me-2">
+                            <i class="bi bi-people fs-4 text-success"></i>
+                        </div>
+                        <div class="text-start">
+                            <div class="text-muted small fw-medium">REGISTERED USERS</div>
+                            <div class="display-5 fw-bold">@Model.RegisteredUsers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

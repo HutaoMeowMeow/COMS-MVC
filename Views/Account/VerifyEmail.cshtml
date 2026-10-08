@@ -1,0 +1,162 @@
+@model VerifyOtpViewModel
+@{
+    ViewData["Title"] = "Verify Email";
+}
+
+@section Styles {
+<style>
+    .auth-page {
+        min-height: 100vh;
+        margin: -1.5rem;
+        padding: 2rem 1rem;
+        background:
+            radial-gradient(1000px 500px at 10% 10%, rgba(49,130,206,.35), transparent 60%),
+            radial-gradient(800px 500px at 90% 90%, rgba(30,58,95,.5), transparent 60%),
+            linear-gradient(135deg, #102a43 0%, #1e3a5f 45%, #2c5282 100%);
+        display: flex;
+        align-items: center;
+        animation: authFadeIn .35s ease both;
+    }
+    .otp-card {
+        border: 0;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        box-shadow: 0 25px 60px rgba(0,0,0,.35);
+        animation: cardRise .4s ease both;
+    }
+    .otp-code-input {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: .75rem;
+        text-align: center;
+        text-indent: .75rem;
+        border-radius: .75rem;
+        padding: .8rem .5rem;
+        font-variant-numeric: tabular-nums;
+    }
+    .otp-code-input:focus {
+        border-color: #3182ce;
+        box-shadow: 0 0 0 .2rem rgba(49,130,206,.25);
+    }
+    @@keyframes authFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @@keyframes cardRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @@media (prefers-reduced-motion: reduce) {
+        .auth-page, .otp-card { animation: none; }
+    }
+</style>
+}
+
+<div class="auth-page">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-7 col-lg-5">
+                <div class="card otp-card">
+                    <div class="card-body p-4 p-lg-5 auth-form bg-white">
+                        <div class="text-center mb-4">
+                            <img src="~/images/COMS-LOGO.png" alt="COMS logo" style="height: 56px; width: auto;" asp-append-version="true" />
+                            <h3 class="fw-bold mt-3 mb-1">Check your email</h3>
+                            <p class="text-muted small mb-0">
+                                Enter the 6-digit verification code for<br />
+                                <strong class="text-dark">@Model.Email</strong>
+                            </p>
+                        </div>
+
+                        @if (TempData["SuccessMessage"] != null)
+                        {
+                            <div class="alert alert-success alert-dismissible fade show small" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        }
+                        @if (TempData["ErrorMessage"] != null)
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show small" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        }
+                        @if (TempData["AlertMessage"] != null)
+                        {
+                            <div class="alert alert-warning alert-dismissible fade show small" role="alert">
+                                <i class="bi bi-exclamation-circle-fill me-2"></i>@TempData["AlertMessage"]
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        }
+
+                        <form asp-action="VerifyEmail" method="post" id="otpForm">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" asp-for="Email" />
+                            @Html.ValidationSummary(true, "", new { @class = "text-danger small mb-3" })
+                            <div class="mb-3">
+                                <label asp-for="Code" class="form-label fw-semibold small">6-digit code</label>
+                                <input asp-for="Code" class="form-control otp-code-input" placeholder="••••••"
+                                       inputmode="numeric" autocomplete="one-time-code" maxlength="6" autofocus />
+                                <span asp-validation-for="Code" class="text-danger small"></span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <i class="bi bi-clock text-muted"></i>
+                                <small class="text-muted">Code expires in <strong>10 minutes</strong> and can only be used once.</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="verifyBtn">
+                                <span class="btn-label"><i class="bi bi-shield-check me-2"></i>Verify account</span>
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            </button>
+                        </form>
+
+                        <form asp-action="ResendOtp" method="post" class="mt-2" id="resendForm">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="email" value="@Model.Email" />
+                            <button type="submit" class="btn btn-outline-secondary w-100 py-2" id="resendBtn">
+                                <span class="btn-label"><i class="bi bi-arrow-repeat me-2"></i>Resend code</span>
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            </button>
+                            <p class="text-center mt-2 mb-0">
+                                <small class="text-muted" id="resendHint">Wait 60 seconds between requests. Max 5 codes per hour.</small>
+                            </p>
+                        </form>
+
+                        <div class="text-center mt-4 pt-3 border-top">
+                            <p class="mb-1 small">
+                                Wrong email?
+                                <a asp-action="Register" class="text-decoration-none fw-semibold">Back to registration</a>
+                            </p>
+                            <a asp-action="Login" class="small text-decoration-none">Proceed to sign in</a>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-center text-white-50 small mt-3 mb-0">
+                    <i class="bi bi-shield-lock me-1"></i>Protected by role-based access — Admin, LGU, Barangay, Maintenance &amp; Resident
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var code = document.getElementById('Code');
+            if (code) {
+                code.addEventListener('input', function () {
+                    this.value = this.value.replace(/\D/g, '').slice(0, 6);
+                });
+            }
+            function wireLoading(formId, btnId) {
+                var form = document.getElementById(formId);
+                var btn = document.getElementById(btnId);
+                if (!form || !btn) return;
+                form.addEventListener('submit', function () {
+                    if (!form.checkValidity()) return;
+                    btn.disabled = true;
+                    var label = btn.querySelector('.btn-label');
+                    var spin = btn.querySelector('.spinner-border');
+                    if (label) label.classList.add('opacity-50');
+                    if (spin) spin.classList.remove('d-none');
+                });
+            }
+            wireLoading('otpForm', 'verifyBtn');
+            wireLoading('resendForm', 'resendBtn');
+        });
+    </script>
+}

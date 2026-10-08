@@ -1,0 +1,86 @@
+@model IEnumerable<Notification>
+@{
+    ViewData["Title"] = "Notifications";
+    ViewData["PageTitle"] = "Notifications";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-bell me-2"></i>Notifications
+    </h1>
+    <form asp-action="MarkAllAsRead" method="post" class="d-inline">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn btn-outline-primary btn-sm"
+                onclick="return confirm('Mark all notifications as read?');">
+            <i class="bi bi-check2-all me-1"></i>Mark All Read
+        </button>
+    </form>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="list-group list-group-flush">
+            @if (Model.Any())
+            {
+                @foreach (var notification in Model)
+                {
+                    <div class="list-group-item border-0 py-3 @(notification.IsRead ? "" : "bg-primary bg-opacity-10")">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <div class="bg-@(notification.Type == "Alert" ? "danger" :
+                                    notification.Type == "Report" || notification.Type == "Report Update" ? "warning" :
+                                    notification.Type == "Announcement" ? "info" :
+                                    notification.Type == "Maintenance" ? "secondary" : "primary") bg-opacity-10 rounded-circle p-2">
+                                    <i class="bi @(notification.Type == "Alert" ? "bi-exclamation-triangle-fill text-danger" :
+                                        notification.Type == "Report" || notification.Type == "Report Update" ? "bi-journal-text text-warning" :
+                                        notification.Type == "Announcement" ? "bi-megaphone text-info" :
+                                        notification.Type == "Maintenance" ? "bi-gear-fill text-secondary" :
+                                        notification.Type == "Support" || notification.Type == "Customer Service" ? "bi-chat-dots text-primary" :
+                                        notification.Type == "Account" ? "bi-person-fill text-primary" :
+                                        notification.Type == "System" ? "bi-gear-fill text-primary" :
+                                        notification.Type == "Important" ? "bi-exclamation-circle-fill text-danger" : "bi-bell text-primary") fs-5"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between">
+                                    <h6 class="mb-1 @(notification.IsRead ? "text-muted" : "fw-bold")">@notification.Title</h6>
+                                    <small class="text-muted">@notification.CreatedAt.ToString("MMM dd, HH:mm")</small>
+                                </div>
+                                <p class="text-muted small mb-0">@notification.Message</p>
+                                @if (notification.RelatedAlert != null)
+                                {
+                                    <a asp-controller="Alerts" asp-action="Details" asp-route-id="@notification.RelatedAlert.ObstructionAlertId" class="text-decoration-none small">
+                                        View Alert
+                                    </a>
+                                }
+                                @if (notification.RelatedReport != null)
+                                {
+                                    <a asp-controller="Reports" asp-action="Details" asp-route-id="@notification.RelatedReport.CommunityReportId" class="text-decoration-none small">
+                                        View Report
+                                    </a>
+                                }
+                            </div>
+                            @if (!notification.IsRead)
+                            {
+                                <form asp-action="MarkAsRead" method="post" asp-route-id="@notification.NotificationId" class="ms-2">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-check"></i>
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-bell-slash fs-1 text-muted mb-3"></i>
+                    <h5 class="text-muted">No notifications</h5>
+                    <p class="text-muted">You're all caught up! New notifications will appear here.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>

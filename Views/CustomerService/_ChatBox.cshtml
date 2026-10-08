@@ -1,0 +1,84 @@
+@model SupportTicketDetailsViewModel
+@{
+    // Shared chat box for resident Ticket view and staff Manage view.
+    // ViewBag: CurrentUserId (string), IsStaff (bool), PostAction (string).
+    var myId = (string)(ViewBag.CurrentUserId ?? string.Empty);
+    var isStaff = (bool)(ViewBag.IsStaff ?? false);
+    var postAction = (string)(ViewBag.PostAction ?? "SendMessage");
+    var isClosed = Model.Ticket.Status == "Closed";
+    var isResolved = Model.Ticket.Status == "Resolved";
+    var readOnly = isClosed;
+}
+<div id="support-chat" class="support-chat @(readOnly ? "is-closed" : "")" data-ticket-id="@Model.Ticket.SupportTicketId"
+     data-current-user-id="@myId" data-is-staff="@isStaff.ToString().ToLower()" data-readonly="@readOnly.ToString().ToLower()">
+    @if (readOnly)
+    {
+        <div class="support-closed-banner" role="status">
+            <i class="bi bi-lock-fill me-2"></i>
+            <div>
+                <strong>This ticket is closed.</strong>
+                <span class="d-block small">The conversation history is preserved below. Reopen the ticket to send new messages.</span>
+            </div>
+        </div>
+    }
+    <div id="support-messages" class="support-messages" role="log" aria-live="polite" aria-label="Conversation">
+        <div class="support-msg theirs support-origin">
+            <div><strong>@Model.Ticket.Subject</strong><br>@Model.Ticket.Description</div>
+            <span class="support-meta">@(Model.Ticket.User?.FullName ?? "Resident") · @Model.Ticket.CreatedAt.ToString("g")</span>
+        </div>
+        @foreach (var m in Model.Messages)
+        {
+            if (m.IsInternal)
+            {
+                if (!isStaff) { continue; }
+                <div class="support-msg internal-note">
+                    <span class="internal-tag">Internal note · @(m.Sender?.FullName ?? "Staff") · @m.SentAt.ToString("g")</span>
+                    <div>@m.Message</div>
+                </div>
+            }
+            else
+            {
+                var mine = m.SenderUserId.ToString() == myId;
+                <div class="support-msg @(mine ? "mine" : "theirs")" data-message-id="@m.SupportMessageId">
+                    <div>@m.Message</div>
+                    <span class="support-meta">@(m.Sender?.FullName ?? (mine ? "You" : "Support")) · @m.SentAt.ToString("g")</span>
+                </div>
+            }
+        }
+    </div>
+    <form id="support-composer-form" asp-action="@postAction" asp-route-id="@Model.Ticket.SupportTicketId"
+          method="post" class="support-composer">
+        @Html.AntiForgeryToken()
+        @if (readOnly)
+        {
+            <div class="composer-disabled-note">
+                <i class="bi bi-lock me-1"></i>Messaging is disabled while this ticket is closed.
+            </div>
+            <div class="input-group">
+                <input id="support-message-input" name="message" class="form-control" maxlength="2000"
+                       placeholder="Ticket closed — reopen to send messages" autocomplete="off"
+                       aria-label="Ticket closed" disabled />
+                <button type="submit" class="btn btn-secondary" disabled aria-disabled="true">
+                    <i class="bi bi-send me-1"></i>Send
+                </button>
+            </div>
+        }
+        else
+        {
+            @if (isResolved)
+            {
+                <div class="alert alert-info small py-2 mb-2">
+                    <i class="bi bi-info-circle me-1"></i>This request is resolved.
+                    Staff may update its status if follow-up is needed.
+                </div>
+            }
+            <div class="input-group">
+                <input id="support-message-input" name="message" class="form-control" maxlength="2000"
+                       placeholder="Type your message..." autocomplete="off" aria-label="Type your message" />
+                <button type="submit" class="btn btn-primary" data-loading>
+                    <i class="bi bi-send me-1"></i>Send
+                </button>
+            </div>
+        }
+    </form>
+</div>

@@ -1,0 +1,122 @@
+@model List<SupportTicket>
+@{
+    ViewData["Title"] = "Support Tickets";
+    ViewData["PageTitle"] = "Support Tickets";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-ticket-detailed me-2"></i>Support Tickets
+    </h1>
+    <a asp-action="Dashboard" class="btn btn-outline-secondary">
+        <i class="bi bi-speedometer2 me-1"></i>Dashboard
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form asp-action="Tickets" method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label" for="status">Status</label>
+                <select id="status" name="status" class="form-select" asp-items="@(ViewBag.Statuses as SelectList)">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="priority">Priority</label>
+                <select id="priority" name="priority" class="form-select" asp-items="@(ViewBag.Priorities as SelectList)">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="category">Category</label>
+                <select id="category" name="category" class="form-select" asp-items="@(ViewBag.Categories as SelectList)">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="q">Search</label>
+                <input id="q" name="q" class="form-control" value="@ViewBag.Query" placeholder="Subject, description, or resident..." />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-1"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 support-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Subject</th>
+                        <th>Resident</th>
+                        <th>Category</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assigned</th>
+                        <th>Updated</th>
+                        <th><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        @foreach (var ticket in Model)
+                        {
+                            var sc = ticket.Status switch
+                            {
+                                "Resolved" => "st-resolved",
+                                "In Progress" => "st-in-progress",
+                                "Open" => "st-pending",
+                                "Waiting for User" => "st-under-review",
+                                "Closed" => "st-low",
+                                _ => "st-pending"
+                            };
+                            var pc = ticket.Priority switch
+                            {
+                                "Urgent" => "st-critical",
+                                "High" => "st-high",
+                                "Normal" => "st-medium",
+                                _ => "st-low"
+                            };
+                            <tr>
+                                <td class="small" data-label="#">#@ticket.SupportTicketId</td>
+                                <td class="fw-medium" data-label="Subject">@ticket.Subject</td>
+                                <td class="small" data-label="Resident">@ticket.User?.FullName</td>
+                                <td class="small" data-label="Category">@ticket.Category</td>
+                                <td data-label="Priority"><span class="status-badge @pc">@ticket.Priority</span></td>
+                                <td data-label="Status"><span class="status-badge @sc">@ticket.Status</span></td>
+                                <td class="small" data-label="Assigned">@(ticket.AssignedToUser?.FullName ?? "Unassigned")</td>
+                                <td class="small text-muted" data-label="Updated">@ticket.UpdatedAt.ToString("MMM dd, yyyy")</td>
+                                <td class="support-action">
+                                    <a asp-action="Manage" asp-route-id="@ticket.SupportTicketId" class="btn btn-sm btn-outline-primary" aria-label="Open ticket @ticket.SupportTicketId">Open</a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="9" class="py-0">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-search"></i></div>
+                                    <h6>No tickets match the filters</h6>
+                                    <p>Try clearing the search or choosing a different status.</p>
+                                    <a asp-action="Tickets" class="btn btn-outline-secondary">
+                                        <i class="bi bi-x-circle me-1"></i>Clear Filters
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

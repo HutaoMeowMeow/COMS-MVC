@@ -1,0 +1,52 @@
+@model UserDetailsViewModel
+@{
+    ViewData["Title"] = "Delete User - " + Model.UserName;
+    ViewData["PageTitle"] = "Delete User";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-danger"><i class="bi bi-trash me-2"></i>Delete User</h1>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Users
+    </a>
+</div>
+
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Warning:</strong> This action will permanently delete this user account.
+    This operation cannot be undone.
+</div>
+
+<form asp-action="Delete" method="post" asp-route-id="@Model.Id">
+    @Html.AntiForgeryToken()
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-danger bg-opacity-10 border-bottom">
+            <h5 class="mb-0 text-danger"><i class="bi bi-person me-2"></i>User Details</h5>
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-4 text-muted">Username</dt>
+                <dd class="col-sm-8 mb-2">@Model.UserName</dd>
+                <dt class="col-sm-4 text-muted">Full Name</dt>
+                <dd class="col-sm-8 mb-2">@Model.FullName</dd>
+                <dt class="col-sm-4 text-muted">Email</dt>
+                <dd class="col-sm-8 mb-2">@Model.Email</dd>
+                <dt class="col-sm-4 text-muted">Roles</dt>
+                <dd class="col-sm-8 mb-2">
+                    @string.Join(", ", Model.Roles)
+                </dd>
+                <dt class="col-sm-4 text-muted">Created</dt>
+                <dd class="col-sm-8 mb-2">@Model.CreatedAt.ToString("g")</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Delete User
+        </button>
+    </div>
+</form>
