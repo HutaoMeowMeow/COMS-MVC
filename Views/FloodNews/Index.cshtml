@@ -24,6 +24,26 @@
         <p class="page-sub">Recent flood-related news for the Philippines. Informational only — not a flood warning.</p>
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
+        @if ((ViewBag.Sources as List<string>)?.Any() == true)
+        {
+            <form asp-action="Index" method="get" class="d-flex gap-2 align-items-center">
+                <label class="visually-hidden" for="sourceFilter">Filter by source</label>
+                <select id="sourceFilter" name="source" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Sources</option>
+                    @foreach (var s in (List<string>)ViewBag.Sources)
+                    {
+                        @if (string.Equals(s, (string?)ViewBag.CurrentSource, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@s" selected>@s</option>
+                        }
+                        else
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    }
+                </select>
+            </form>
+        }
         <a asp-action="Index" asp-route-refresh="true" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-arrow-clockwise me-1"></i>Refresh
         </a>
@@ -99,7 +119,15 @@ else
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-body d-flex flex-column">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="badge bg-primary-subtle text-primary">@article.Source</span>
+                                <span>
+                                    <span class="badge bg-primary-subtle text-primary">@article.Source</span>
+                                    @if (article.IsOfficial)
+                                    {
+                                        <span class="badge bg-success-subtle text-success ms-1" title="Official government/disaster data">
+                                            <i class="bi bi-patch-check me-1"></i>Official data
+                                        </span>
+                                    }
+                                </span>
                                 <small class="text-muted">@PhTime(article.PublishedAt)</small>
                             </div>
                             <h5 class="card-title">@article.Title</h5>

@@ -25,7 +25,10 @@ namespace COMS_MVC.Services
         {
             "https://www.inquirer.net/fullfeed",
             "https://cebudailynews.inquirer.net/feed",
-            "https://www.philstar.com/rss/nation"
+            "https://www.philstar.com/rss/nation",
+            "https://www.sunstar.com.ph/feed",
+            "https://www.rappler.com/feed/",
+            "https://palawan-news.com/feed"
         };
 
         /// <summary>Back-compat single-feed value; appended when set.</summary>
@@ -60,6 +63,9 @@ namespace COMS_MVC.Services
         public string Snippet { get; set; } = string.Empty;
 
         public List<string> AffectedAreas { get; set; } = new();
+
+        /// <summary>True for official government/disaster-data sources (GDACS).</summary>
+        public bool IsOfficial { get; set; }
     }
 
     public sealed class FloodNewsTrends
@@ -112,16 +118,21 @@ namespace COMS_MVC.Services
 
         private static readonly string[] StrongKeywords =
         {
-            "flash flood", "flood risk", "floodwater", "floodwaters", "storm surge",
-            "flood", "flooding", "flooded", "inundation", "inundated",
-            "overflow", "overflowing", "baha", "bahain"
+            "flash flood", "flash flooding", "flood risk", "flood warning", "flood advisory",
+            "flood alert", "floodwater", "floodwaters", "storm surge",
+            "flood", "floods", "flooding", "flooded", "inundation", "inundated",
+            "overflow", "overflowing", "river overflow", "drainage overflow", "canal overflow",
+            "overflowing river", "waterlogging",
+            "baha", "pagbaha", "binaha", "binabaha", "lunop"
         };
 
         private static readonly string[] WeakKeywords =
         {
-            "heavy rainfall", "heavy rains", "rainfall", "rains",
-            "typhoon", "bagyo", "cyclone", "monsoon", "habagat", "amihan", "itcz",
-            "water level", "drainage", "canal", "evacuation", "evacuate", "rain"
+            "heavy rainfall", "heavy rain", "heavy rains", "torrential rain", "intense rainfall",
+            "rainfall warning", "rainfall", "rains", "rain", "ulan",
+            "typhoon", "bagyo", "tropical storm", "cyclone", "storm", "storms",
+            "monsoon", "southwest monsoon", "habagat", "amihan", "itcz",
+            "water level", "water levels", "drainage", "canal", "evacuation", "evacuate"
         };
 
         /// <summary>
@@ -130,31 +141,73 @@ namespace COMS_MVC.Services
         /// </summary>
         private static readonly string[] Gazetteer =
         {
-            "Metro Manila", "National Capital Region",
+            "Metro Manila", "National Capital Region", "NCR", "Metro Cebu",
+            "Central Luzon", "Calabarzon", "Mimaropa", "Bicol Region",
+            "Western Visayas", "Central Visayas", "Eastern Visayas",
+            "Northern Mindanao", "Davao Region", "Soccsksargen", "Caraga",
+            "Bangsamoro", "Cordillera", "Cagayan Valley", "Ilocos Region",
             "Cebu City", "Lapu-Lapu City", "Mandaue City", "Talisay City",
-            "Quezon City", "Caloocan City", "Davao City", "Cagayan de Oro",
-            "Iloilo City", "Bacolod City", "Tacloban City", "Zamboanga City",
-            "Baguio City", "Angeles City", "Olongapo City", "Batangas City",
-            "Lipa City", "Naga City", "Legazpi City", "Tuguegarao City",
-            "Dagupan City", "Iligan City", "Butuan City", "General Santos",
-            "Cotabato City", "Valencia City", "Malaybalay City", "San Fernando City",
-            "Carcar City", "Mandaue", "Lapu-Lapu", "Marikina", "Pasig", "Valenzuela",
-            "Malabon", "Navotas", "Paranaque", "Las Pinas", "Muntinlupa", "Makati",
-            "Mandaluyong", "San Juan", "Pasay", "Manila", "Quezon", "Cebu", "Bohol",
-            "Negros", "Panay", "Leyte", "Samar", "Palawan", "Mindoro", "Marinduque",
-            "Batangas", "Laguna", "Cavite", "Rizal", "Bulacan", "Pampanga", "Tarlac",
-            "Pangasinan", "Ilocos", "Cagayan", "Isabela", "Batanes", "Bukidnon",
-            "Misamis Oriental", "Misamis Occidental", "Lanao del Norte", "Lanao del Sur",
-            "Davao del Norte", "Davao del Sur", "Davao Oriental", "Cotabato",
-            "Maguindanao", "Zamboanga del Norte", "Zamboanga del Sur", "Ifugao",
-            "Benguet", "Mountain Province", "Kalinga", "Apayao", "Abra",
+            "Danao City", "Toledo City", "Naga City", "Carcar City", "Bogo City",
+            "Consolacion", "Liloan", "Compostela", "Cordova", "Minglanilla",
+            "San Fernando City", "Sibonga", "Argao", "Dalaguete", "Bantayan",
+            "Madridejos", "Santa Fe", "Daanbantayan", "Medellin", "San Remigio",
+            "Tabuelan", "Tuburan", "Asturias", "Balamban", "Pinamungajan",
+            "Aloguinsan", "Sogod", "Catmon", "Carmen", "Mandaue", "Lapu-Lapu",
+            "Tagbilaran City", "Talibon", "Ubay", "Bohol",
+            "Dumaguete City", "San Carlos City", "Kabankalan City", "Victorias City",
+            "Silay City", "Bais City", "Negros",
+            "Ormoc City", "Baybay City", "Maasin City", "Tacloban City", "Leyte",
+            "Calbayog City", "Catbalogan City", "Borongan City", "Samar",
+            "Naval", "Biliran", "Southern Leyte", "Eastern Samar", "Northern Samar",
+            "Roxas City", "Kalibo", "San Jose de Buenavista", "Passi City",
+            "Iloilo City", "Bacolod City", "Panay", "Guimaras", "Aklan", "Antique",
+            "Capiz", "Iloilo",
+            "Puerto Princesa City", "Puerto Princesa", "Coron", "El Nido",
+            "Brookes Point", "Brooke's Point", "Narra", "Quezon, Palawan", "Palawan",
+            "Quezon City", "Caloocan City", "Marikina City", "Marikina", "Pasig City",
+            "Pasig", "Valenzuela City", "Malabon City", "Malabon", "Navotas City",
+            "Navotas", "Paranaque City", "Paranaque", "Las Pinas City", "Las Pinas",
+            "Muntinlupa City", "Muntinlupa", "Makati City", "Makati",
+            "Mandaluyong City", "Mandaluyong", "San Juan City", "San Juan",
+            "Pasay City", "Pasay", "Manila", "Taguig City", "Taguig", "Pateros",
+            "Malolos City", "Malolos", "Meycauayan City", "Meycauayan", "Marilao",
+            "Bocaue", "Santa Maria", "Bulacan", "Plaridel", "Calumpit", "Hagonoy",
+            "San Fernando", "Angeles City", "Mabalacat City", "Mabalacat", "Guagua",
+            "Apalit", "Macabebe", "Masantol", "Pampanga", "Tarlac City", "Tarlac",
+            "Olongapo City", "Subic", "Pangasinan", "Dagupan City", "Alaminos City",
+            "Urdaneta City", "Laoag City", "Vigan City", "Candon City", "Ilocos",
+            "Tuguegarao City", "Ilagan City", "Ilagan", "Cauayan City", "Cauayan",
+            "Santiago City", "Aparri", "Cagayan", "Isabela", "Batanes", "Nueva Vizcaya",
+            "Quirino", "Aurora", "Nueva Ecija", "Cabanatuan City", "Palayan City",
+            "Calamba City", "Calamba", "San Pablo City", "San Pablo", "Binan City",
+            "Binan", "Santa Rosa City", "Santa Rosa", "Santa Cruz", "Laguna", "Cavite",
+            "Bacoor City", "Bacoor", "Imus City", "Imus", "Dasmariñas City", "Dasmarinas",
+            "Bauan", "Lemery", "Taal", "Tanauan City", "Tanauan", "Santo Tomas",
+            "Batangas City", "Batangas", "Rizal", "Antipolo City", "Antipolo",
+            "Taytay", "Cainta", "Rodriguez", "Montalban", "San Mateo",
+            "Iriga City", "Iriga", "Tabaco City", "Tabaco", "Sorsogon City",
+            "Masbate City", "Daet", "Naga City", "Legazpi City",
             "Camarines Sur", "Camarines Norte", "Albay", "Sorsogon", "Catanduanes",
-            "Aklan", "Antique", "Capiz", "Guimaras", "Iloilo", "Negros Occidental",
-            "Negros Oriental", "Siquijor", "Bohol", "Southern Leyte", "Biliran",
-            "Eastern Samar", "Northern Samar", "Western Samar", "Agusan del Norte",
-            "Agusan del Sur", "Surigao del Norte", "Surigao del Sur", "Dinagat",
-            "Davao de Oro", "Davao Occidental", "Sarangani", "South Cotabato",
-            "Sultan Kudarat", "Basilan", "Sulu", "Tawi-Tawi",
+            "Masbate", "Romblon", "Marinduque", "Occidental Mindoro", "Oriental Mindoro",
+            "Calapan City", "Calapan", "Naujan", "Bukidnon",
+            "Valencia City", "Malaybalay City", "Misamis Oriental", "Misamis Occidental",
+            "Ozamiz City", "Ozamiz", "Oroquieta City", "Tangub City",
+            "Cagayan de Oro", "Iligan City", "El Salvador City", "Gingoog City",
+            "Lanao del Norte", "Lanao del Sur", "Marawi City", "Marawi", "Tubod",
+            "Pagadian City", "Pagadian", "Dipolog City", "Dapitan City",
+            "Davao City", "Tagum City", "Tagum", "Panabo City", "Panabo",
+            "Digos City", "Digos", "Mati City", "Mati", "Davao del Norte",
+            "Davao del Sur", "Davao Oriental", "Davao de Oro",
+            "Kidapawan City", "Kidapawan", "Tacurong City", "Tacurong",
+            "Koronadal City", "Koronadal", "Isulan", "Cotabato", "Cotabato City",
+            "Midsayap", "Kabacan", "Maguindanao", "Sultan Kudarat", "South Cotabato",
+            "Sarangani", "General Santos", "Zamboanga City", "Zamboanga del Norte",
+            "Zamboanga del Sur", "Zamboanga Sibugay", "Isabela City", "Lamitan City",
+            "Basilan", "Sulu", "Jolo", "Tawi-Tawi", "Agusan del Norte", "Agusan del Sur",
+            "Butuan City", "Cabadbaran City", "Bayugan City", "Tandag City", "Bislig City",
+            "Surigao del Norte", "Surigao del Sur", "Surigao City", "Dinagat Islands",
+            "Baguio City", "Tabuk City", "Tabuk", "Ifugao", "Benguet", "Mountain Province",
+            "Kalinga", "Apayao", "Abra", "Bontoc", "La Trinidad",
             "Luzon", "Visayas", "Mindanao", "Philippines", "Philippine"
         };
 
@@ -225,6 +278,7 @@ namespace COMS_MVC.Services
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
 
                 // All feeds in parallel: one slow provider never multiplies the wait.
+                // Each feed is isolated: one failure never affects the others.
                 var gdacsTask = FetchGdacsAsync(linked.Token);
                 var newsTasks = FeedUrls()
                     .Select(feed => FetchPhilippineNewsAsync(feed.Url, feed.Source, linked.Token))
@@ -235,10 +289,16 @@ namespace COMS_MVC.Services
 
                 // PHILIPPINES-ONLY: every pool below already rejects non-PH
                 // items at the source. No international fallback exists.
-                var combined = new List<FloodNewsArticle>(await gdacsTask);
+                var combined = new List<FloodNewsArticle>();
+                var anySourceFailed = false;
+                var (gdacsArticles, gdacsOk) = await gdacsTask;
+                anySourceFailed |= !gdacsOk;
+                combined.AddRange(gdacsArticles);
                 foreach (var task in newsTasks)
                 {
-                    combined.AddRange(await task);
+                    var (feedArticles, feedOk) = await task;
+                    anySourceFailed |= !feedOk;
+                    combined.AddRange(feedArticles);
                 }
 
                 var cutoff = DateTimeOffset.UtcNow.AddDays(-Math.Max(1, _options.MaxAgeDays));
@@ -247,6 +307,16 @@ namespace COMS_MVC.Services
                     .OrderByDescending(a => a.PublishedAt ?? DateTimeOffset.MinValue)
                     .Take(Math.Clamp(_options.MaxArticles, 1, 100))
                     .ToList();
+
+                // Truthful emptiness: an empty merge is only genuinely empty
+                // when EVERY source succeeded. If any source failed, keep the
+                // last good result (marked stale) instead of wiping the page.
+                if (articles.Count == 0 && anySourceFailed && lastGood != null && lastGood.Articles.Count > 0)
+                {
+                    lastGood.IsStale = true;
+                    _cache.Set(CacheKey, lastGood, TimeSpan.FromMinutes(3));
+                    return lastGood;
+                }
 
                 var result = new FloodNewsResult
                 {
@@ -322,6 +392,18 @@ namespace COMS_MVC.Services
             {
                 return "Philstar";
             }
+            if (url.Contains("sunstar", StringComparison.OrdinalIgnoreCase))
+            {
+                return "SunStar";
+            }
+            if (url.Contains("rappler", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Rappler";
+            }
+            if (url.Contains("palawan-news", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Palawan News";
+            }
             if (url.Contains("inquirer", StringComparison.OrdinalIgnoreCase))
             {
                 return "Inquirer";
@@ -331,7 +413,7 @@ namespace COMS_MVC.Services
 
         // ---------- providers ----------
 
-        private async Task<List<FloodNewsArticle>> FetchGdacsAsync(CancellationToken ct)
+        private async Task<(List<FloodNewsArticle> Articles, bool Ok)> FetchGdacsAsync(CancellationToken ct)
         {
             var articles = new List<FloodNewsArticle>();
             string xml;
@@ -342,7 +424,7 @@ namespace COMS_MVC.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogWarning("GDACS feed returned {Status}.", (int)response.StatusCode);
-                    return articles;
+                    return (articles, false);
                 }
                 xml = await response.Content.ReadAsStringAsync(ct);
             }
@@ -353,7 +435,7 @@ namespace COMS_MVC.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "GDACS feed fetch failed.");
-                return articles;
+                return (articles, false);
             }
 
             XDocument doc;
@@ -364,7 +446,7 @@ namespace COMS_MVC.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "GDACS feed XML could not be parsed.");
-                return articles;
+                return (articles, false);
             }
 
             XNamespace gdacs = "http://www.gdacs.org";
@@ -407,13 +489,14 @@ namespace COMS_MVC.Services
                     PublishedAt = ParseDate((string?)item.Element("pubDate")),
                     Url = link,
                     Snippet = snippet,
-                    AffectedAreas = areas.Count > 0 ? areas : new List<string> { "Philippines" }
+                    AffectedAreas = areas.Count > 0 ? areas : new List<string> { "Philippines" },
+                    IsOfficial = true
                 });
             }
-            return articles;
+            return (articles, true);
         }
 
-        private async Task<List<FloodNewsArticle>> FetchPhilippineNewsAsync(
+        private async Task<(List<FloodNewsArticle> Articles, bool Ok)> FetchPhilippineNewsAsync(
             string feedUrl, string sourceName, CancellationToken ct)
         {
             var articles = new List<FloodNewsArticle>();
@@ -425,8 +508,8 @@ namespace COMS_MVC.Services
                 using var response = await _http.SendAsync(request, ct);
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("PH news feed returned {Status}.", (int)response.StatusCode);
-                    return articles;
+                    _logger.LogWarning("PH news feed {Feed} returned {Status}.", sourceName, (int)response.StatusCode);
+                    return (articles, false);
                 }
                 xml = await response.Content.ReadAsStringAsync(ct);
             }
@@ -436,8 +519,8 @@ namespace COMS_MVC.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "PH news feed fetch failed.");
-                return articles;
+                _logger.LogWarning(ex, "PH news feed {Feed} fetch failed.", sourceName);
+                return (articles, false);
             }
 
             XDocument doc;
@@ -447,8 +530,8 @@ namespace COMS_MVC.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "PH news feed XML could not be parsed.");
-                return articles;
+                _logger.LogWarning(ex, "PH news feed {Feed} XML could not be parsed.", sourceName);
+                return (articles, false);
             }
 
             foreach (var item in doc.Descendants("item"))
@@ -460,8 +543,20 @@ namespace COMS_MVC.Services
                     continue;
                 }
 
-                var snippet = Snippetize((string?)item.Element("description"));
-                var haystack = title + "\n" + snippet;
+                // Some publishers (e.g. SunStar) leave <description/> empty and
+                // put the body in content:encoded; categories often carry the
+                // location. Use all three for matching; the visible snippet
+                // stays a short excerpt (never full text).
+                // Categories carry places ("Cebu", "Pampanga") but also
+                // topical tags, so they feed location detection ONLY —
+                // never keyword matching.
+                var bodyText = CleanText((string?)item.Element("description"));
+                var fullText = bodyText + "\n" + ContentEncodedText(item);
+                var placeText = fullText + "\n" + CategoryText(item);
+                var snippet = Snippetize(string.IsNullOrWhiteSpace(bodyText)
+                    ? (string?)item.Element(ContentNamespace + "encoded")
+                    : bodyText);
+                var haystack = title + "\n" + fullText;
                 if (!IsFloodRelevant(haystack, out _))
                 {
                     continue;
@@ -470,7 +565,7 @@ namespace COMS_MVC.Services
                 // PHILIPPINES-ONLY gate: gazetteer place OR an explicit
                 // Philippines mention. Anything else is rejected — never
                 // borrowed, never relabeled, never "Area not specified".
-                var areas = DetectAreas(haystack);
+                var areas = DetectAreas(title + "\n" + placeText);
                 if (areas.Count == 0)
                 {
                     if (!MentionsPhilippines(haystack))
@@ -490,8 +585,16 @@ namespace COMS_MVC.Services
                     AffectedAreas = areas
                 });
             }
-            return articles;
+            return (articles, true);
         }
+
+        private static readonly XNamespace ContentNamespace = "http://purl.org/rss/1.0/modules/content/";
+
+        private static string ContentEncodedText(XElement item) =>
+            CleanText((string?)item.Element(ContentNamespace + "encoded"));
+
+        private static string CategoryText(XElement item) =>
+            string.Join(" ", item.Elements("category").Select(c => CleanText(c.Value)));
 
         /// <summary>
         /// Explicit Philippines mention with strict word boundaries, so "PH"
@@ -617,7 +720,8 @@ namespace COMS_MVC.Services
             {
                 return string.Empty;
             }
-            return WebUtility.HtmlDecode(Regex.Replace(value, "<[^>]+>", " ")).Trim();
+            var decoded = WebUtility.HtmlDecode(Regex.Replace(value, "<[^>]+>", " "));
+            return Regex.Replace(decoded, @"\s+", " ").Trim();
         }
 
         private static string Snippetize(string? html, int maxLength = 220)

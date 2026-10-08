@@ -15,7 +15,7 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index(bool refresh = false, CancellationToken ct = default)
+        public async Task<IActionResult> Index(bool refresh = false, string? source = null, CancellationToken ct = default)
         {
             var result = refresh
                 ? await _floodNews.RefreshAsync(ct)
@@ -23,6 +23,31 @@ namespace COMS_MVC.Controllers
             if (result.RefreshThrottled)
             {
                 TempData["AlertMessage"] = "News was refreshed moments ago — showing the latest available.";
+            }
+
+            // Source filter (dropdown): applied to a copy so the shared
+            // cached result is never mutated. Trends stay global.
+            var sources = result.Articles
+                .Select(a => a.Source)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList();
+            ViewBag.Sources = sources;
+            ViewBag.CurrentSource = source;
+            if (!string.IsNullOrWhiteSpace(source)
+                && sources.Contains(source, StringComparer.OrdinalIgnoreCase))
+            {
+                result = new FloodNewsResult
+                {
+                    Articles = result.Articles
+                        .Where(a => a.Source.Equals(source, StringComparison.OrdinalIgnoreCase))
+                        .ToList(),
+                    Trends = result.Trends,
+                    FetchedAtUtc = result.FetchedAtUtc,
+                    IsStale = result.IsStale,
+                    IsUnavailable = result.IsUnavailable,
+                    RefreshThrottled = result.RefreshThrottled
+                };
             }
             return View(result);
         }
