@@ -51,17 +51,6 @@
                     <span asp-validation-for="Title" class="text-danger small"></span>
                 </div>
             </div>
-            <div class="row g-3 mt-1 other-problem-wrap @(Model.ReportType == "Other" ? "show" : "")" id="otherProblemWrap">
-                <div class="col-12">
-                    <label asp-for="OtherProblem" class="form-label"></label>
-                    <span class="text-danger" aria-hidden="true">*</span>
-                    <textarea asp-for="OtherProblem" class="form-control" rows="2"
-                              placeholder="Describe the canal problem..."
-                              aria-describedby="otherProblemHelp"></textarea>
-                    <div class="form-text" id="otherProblemHelp">Please briefly explain what type of canal problem you are reporting.</div>
-                    <span asp-validation-for="OtherProblem" class="text-danger small" data-valmsg-for="OtherProblem"></span>
-                </div>
-            </div>
         </div>
     </section>
 
@@ -155,40 +144,6 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            // "Other" specification: shown + required only for ReportType Other.
-            var typeSelect = document.getElementById('ReportType');
-            var otherWrap = document.getElementById('otherProblemWrap');
-            var otherInput = document.getElementById('OtherProblem');
-            function otherError(msg) {
-                var span = otherWrap ? otherWrap.querySelector('[data-valmsg-for="OtherProblem"]') : null;
-                if (span) {
-                    span.textContent = msg || '';
-                    span.classList.toggle('field-validation-error', !!msg);
-                    span.classList.toggle('field-validation-valid', !msg);
-                }
-            }
-            function syncOther() {
-                if (!typeSelect || !otherWrap || !otherInput) return;
-                var isOther = typeSelect.value === 'Other';
-                otherWrap.classList.toggle('show', isOther);
-                if (isOther) {
-                    otherInput.setAttribute('required', 'required');
-                    otherInput.setAttribute('aria-required', 'true');
-                } else {
-                    otherInput.removeAttribute('required');
-                    otherInput.removeAttribute('aria-required');
-                    otherError('');
-                }
-            }
-            if (typeSelect) {
-                typeSelect.addEventListener('change', syncOther);
-                syncOther();
-            }
-            if (otherInput) {
-                otherInput.addEventListener('input', function () {
-                    if (otherInput.value.trim()) otherError('');
-                });
-            }
             var latInput = document.getElementById('Latitude');
             var lngInput = document.getElementById('Longitude');
             // Cebu province bounds: lat 9.30-11.45, lng 123.20-124.60. Center: Cebu City.
@@ -332,17 +287,7 @@
             var form = document.getElementById('reportForm');
             var submit = document.getElementById('submitReportBtn');
             if (form && submit) {
-                form.addEventListener('submit', function (ev) {
-                    // Client-side conditional rule (server re-validates):
-                    // block whitespace-only "Other" specifications with a
-                    // clear message instead of a silent post.
-                    if (typeSelect && typeSelect.value === 'Other'
-                        && otherInput && !otherInput.value.trim()) {
-                        ev.preventDefault();
-                        otherError('Please specify the problem you are reporting.');
-                        otherInput.focus();
-                        return;
-                    }
+                form.addEventListener('submit', function () {
                     if (!form.checkValidity()) return;
                     submit.disabled = true;
                     submit.querySelector('.btn-label').classList.add('opacity-50');

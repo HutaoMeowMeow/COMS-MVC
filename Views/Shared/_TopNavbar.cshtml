@@ -64,6 +64,10 @@
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                     <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile"><i class="bi bi-person me-2"></i>Profile</a></li>
+                    @if (User.IsInRole("Resident"))
+                    {
+                        <li><a class="dropdown-item" asp-controller="CustomerService" asp-action="Index"><i class="bi bi-headset me-2"></i>Customer Service</a></li>
+                    }
                     <li><hr class="dropdown-divider" /></li>
                     <li>
                         <form asp-controller="Account" asp-action="Logout" method="post">

@@ -20,8 +20,7 @@ namespace COMS_MVC.Controllers
             "Blocked Canal",
             "Flooding",
             "Damaged Canal",
-            "Unusual Water Level",
-            "Other"
+            "Unusual Water Level"
         };
 
         private static readonly List<string> ReportStatuses = new()
@@ -157,7 +156,7 @@ namespace COMS_MVC.Controllers
             var model = new CommunityReportFormViewModel
             {
                 CanalId = canalId,
-                ReportType = "Other",
+                ReportType = "Garbage / Debris",
                 CreatedAt = DateTime.UtcNow,
                 Latitude = 10.3157,
                 Longitude = 123.8854
@@ -197,19 +196,11 @@ namespace COMS_MVC.Controllers
             model.Title = (model.Title ?? string.Empty).Trim();
             model.Description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
             model.Location = string.IsNullOrWhiteSpace(model.Location) ? null : model.Location.Trim();
-            model.ReportType = string.IsNullOrWhiteSpace(model.ReportType) ? "Other" : model.ReportType.Trim();
-            model.OtherProblem = string.IsNullOrWhiteSpace(model.OtherProblem) ? null : model.OtherProblem.Trim();
+            model.ReportType = (model.ReportType ?? string.Empty).Trim();
 
             if (!ReportTypes.Contains(model.ReportType))
             {
                 ModelState.AddModelError(nameof(model.ReportType), "Please select a valid report type.");
-            }
-
-            // Server-side conditional rule (never trust client-side only):
-            // "Other" must say what the problem is. Whitespace-only is rejected.
-            if (model.ReportType == "Other" && model.OtherProblem == null)
-            {
-                ModelState.AddModelError(nameof(model.OtherProblem), "Please specify the problem you are reporting.");
             }
 
             if (model.Latitude == null || model.Longitude == null)
@@ -320,14 +311,7 @@ namespace COMS_MVC.Controllers
                     CanalId = model.CanalId,
                     ReportType = model.ReportType,
                     Title = model.Title,
-                    // No extra column: the "Other" specification is stored as
-                    // the leading paragraph of Description, so every existing
-                    // list/detail view shows it with no changes to queries.
-                    Description = model.ReportType == "Other" && model.OtherProblem != null
-                        ? (model.Description != null
-                            ? model.OtherProblem + "\n\n" + model.Description
-                            : model.OtherProblem)
-                        : model.Description ?? string.Empty,
+                    Description = model.Description ?? string.Empty,
                     PhotoPath = photoPath,
                     Location = model.Location,
                     Latitude = model.Latitude,
@@ -596,15 +580,7 @@ namespace COMS_MVC.Controllers
 
         [Required(ErrorMessage = "Report type is required")]
         [StringLength(50, ErrorMessage = "Report type cannot exceed 50 characters")]
-        public string ReportType { get; set; } = "Other";
-
-        /// <summary>
-        /// Form-only. Required when ReportType is "Other"; merged into
-        /// Description on save so no extra database column is needed.
-        /// </summary>
-        [StringLength(500, ErrorMessage = "Specified problem cannot exceed 500 characters")]
-        [Display(Name = "Please specify the problem")]
-        public string? OtherProblem { get; set; }
+        public string ReportType { get; set; } = "Garbage / Debris";
 
         [Required(ErrorMessage = "Title is required")]
         [StringLength(150, ErrorMessage = "Title cannot exceed 150 characters")]

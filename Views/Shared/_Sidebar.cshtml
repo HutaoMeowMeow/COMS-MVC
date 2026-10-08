@@ -236,11 +236,6 @@
                         <i class="bi bi-folder2-open me-2"></i>My Reports
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white sidebar-nav-item" asp-controller="CustomerService" asp-action="Index">
-                        <i class="bi bi-headset me-2"></i>Customer Service
-                    </a>
-                </li>
                 <li class="nav-section" aria-hidden="true">Community</li>
                 <li class="nav-item">
                     <a class="nav-link text-white sidebar-nav-item" asp-controller="Alerts" asp-action="Index">
@@ -292,13 +287,18 @@
                 </li>
             }
 
-            <li class="nav-item mt-2">
-                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                    <button type="submit" class="nav-link text-white sidebar-nav-item btn btn-link w-100 text-start">
-                        <i class="bi bi-box-arrow-right me-2"></i>Logout
-                    </button>
-                </form>
-            </li>
+            @* Residents use the profile-dropdown Logout exclusively;
+               other roles keep the sidebar Logout. *@
+            @if (!User.IsInRole("Resident"))
+            {
+                <li class="nav-item mt-2">
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        <button type="submit" class="nav-link text-white sidebar-nav-item btn btn-link w-100 text-start">
+                            <i class="bi bi-box-arrow-right me-2"></i>Logout
+                        </button>
+                    </form>
+                </li>
+            }
         </ul>
     </nav>
 </aside>
