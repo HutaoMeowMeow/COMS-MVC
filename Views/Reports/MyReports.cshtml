@@ -1,0 +1,76 @@
+@model IEnumerable<CommunityReport>
+@using COMS_MVC.Helpers
+@{
+    ViewData["Title"] = "My Reports";
+    ViewData["PageTitle"] = "My Reports";
+}
+
+<div class="page-head">
+    <div class="min-w-0">
+        <h1 class="h3 text-break">My Reports</h1>
+        <p class="page-sub">Track every canal problem you've reported and its status.</p>
+    </div>
+    <a asp-action="Create" class="btn btn-primary flex-shrink-0">
+        <i class="bi bi-plus-circle me-1"></i>New Report
+    </a>
+</div>
+
+@if (Model.Any())
+{
+    <div class="row g-3 g-lg-4">
+        @foreach (var report in Model.Select((r, i) => new { r, i }))
+        {
+            var rc = report.r.Status switch
+            {
+                "Resolved" => "st-resolved",
+                "In Progress" => "st-in-progress",
+                "Pending" => "st-pending",
+                "Under Review" => "st-under-review",
+                "Verified" => "st-verified",
+                "Assigned" => "st-assigned",
+                "Rejected" => "st-rejected",
+                _ => "st-pending"
+            };
+            <div class="col-12 col-sm-6 col-xl-4 d-flex">
+                <div class="report-card w-100" style="--i:@(report.i % 6)">
+                    <div class="report-card-body min-w-0">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <span class="status-badge @rc">@report.r.Status</span>
+                            <small class="report-meta flex-shrink-0"><i class="bi bi-calendar3 me-1"></i><time data-utc="@PhTime.AsUtc(report.r.CreatedAt).ToString("o")" title="@PhTime.ToPhString(report.r.CreatedAt) (Philippine time)">@PhTime.ToRelative(report.r.CreatedAt)</time></small>
+                        </div>
+                        <h6 class="mb-1 text-break">@report.r.Title</h6>
+                        <p class="report-meta mb-1 text-break">
+                            <i class="bi bi-geo-alt me-1"></i>@(report.r.Canal?.CanalName ?? (report.r.Location ?? "Pinned location"))
+                        </p>
+                        <p class="report-meta mb-0">
+                            <span class="badge bg-light text-dark border text-break">@report.r.ReportType</span>
+                            <span class="ms-1">#@report.r.CommunityReportId</span>
+                        </p>
+                        @if (!string.IsNullOrEmpty(report.r.Description))
+                        {
+                            <p class="small text-muted mt-2 mb-0 report-desc-clamp text-break">@report.r.Description</p>
+                        }
+                    </div>
+                    <div class="px-3 pb-3">
+                        <a asp-action="Details" asp-route-id="@report.r.CommunityReportId" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-eye me-1"></i>View Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-journal-plus"></i></div>
+            <h6>No reports yet</h6>
+            <p>You haven't submitted any canal problem reports yet. When you spot a blockage or flooding, tell your LGU in under a minute.</p>
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i>Report a Problem
+            </a>
+        </div>
+    </div>
+}

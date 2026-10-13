@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="COMS MVC.csproj" />
+  <Project Path="COMS.Tests/COMS.Tests.csproj" />
+</Solution>

@@ -1,0 +1,27 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.rsuser
+
+# Build output
+bin/
+obj/
+
+# Local database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Secrets / local configuration
+appsettings.Development.json
+
+# Browser/session files
+cookies.txt
+
+# OS files
+.DS_Store
+Thumbs.db

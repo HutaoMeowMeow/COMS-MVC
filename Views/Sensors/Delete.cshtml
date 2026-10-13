@@ -1,0 +1,44 @@
+@model Sensor
+@{
+    ViewData["Title"] = "Delete Sensor";
+    ViewData["PageTitle"] = "Delete Sensor";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-danger"><i class="bi bi-trash me-2"></i>Delete Sensor</h1>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to List</a>
+</div>
+
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>Warning:</strong> This action will permanently delete this sensor and all its readings.
+    This operation cannot be undone.
+</div>
+
+<form asp-action="Delete" method="post" asp-route-id="@Model.SensorId">
+    @Html.AntiForgeryToken()
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-danger bg-opacity-10 border-bottom">
+            <h5 class="mb-0 text-danger"><i class="bi bi-gear-fill me-2"></i>Sensor Details</h5>
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-4 text-muted">Sensor Code</dt>
+                <dd class="col-sm-8 mb-2">@Model.SensorCode</dd>
+                <dt class="col-sm-4 text-muted">Sensor Type</dt>
+                <dd class="col-sm-8 mb-2">@Model.SensorType</dd>
+                <dt class="col-sm-4 text-muted">Canal</dt>
+                <dd class="col-sm-8 mb-2">@(Model.Canal?.CanalName ?? "N/A")</dd>
+                <dt class="col-sm-4 text-muted">Status</dt>
+                <dd class="col-sm-8 mb-2">@Model.Status</dd>
+                <dt class="col-sm-4 text-muted">Readings</dt>
+                <dd class="col-sm-8 mb-2">@Model.SensorReadings.Count item(s)</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Cancel</a>
+        <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Delete Sensor</button>
+    </div>
+</form>

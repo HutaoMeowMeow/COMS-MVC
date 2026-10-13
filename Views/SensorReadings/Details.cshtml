@@ -1,0 +1,90 @@
+@model SensorReading
+@{
+    ViewData["Title"] = "Sensor Reading Details";
+    ViewData["PageTitle"] = "Reading Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-eyedropper me-2"></i>Sensor Reading #@Model.SensorReadingId
+    </h1>
+    <a asp-controller="SensorReadings" asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Monitoring
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom">
+        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Reading Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <dl class="row mb-0">
+                    <dt class="col-5 text-muted small">Sensor</dt>
+                    <dd class="col-7 mb-2">@Model.Sensor?.SensorCode (@Model.Sensor?.SensorType)</dd>
+                    <dt class="col-5 text-muted small">Canal</dt>
+                    <dd class="col-7 mb-2">@Model.Canal?.CanalName</dd>
+                    <dt class="col-5 text-muted small">Recorded At</dt>
+                    <dd class="col-7 mb-2">@Model.RecordedAt.ToString("g")</dd>
+                    <dt class="col-5 text-muted small">Source</dt>
+                    <dd class="col-7 mb-2">
+                        <span class="badge @(Model.IsSimulated ? "bg-secondary" : "bg-success")">
+                            @(Model.IsSimulated ? "Simulated Data" : "Physical Sensor")
+                        </span>
+                    </dd>
+                </dl>
+            </div>
+            <div class="col-md-6">
+                <dl class="row mb-0">
+                    <dt class="col-5 text-muted small">Water Level (m)</dt>
+                    <dd class="col-7 mb-2 fw-bold">@Model.WaterLevel</dd>
+                    <dt class="col-5 text-muted small">Flow Rate (m³/s)</dt>
+                    <dd class="col-7 mb-2">@Model.FlowRate</dd>
+                    <dt class="col-5 text-muted small">Debris Level (%)</dt>
+                    <dd class="col-7 mb-2">@Model.DebrisLevel</dd>
+                    <dt class="col-5 text-muted small">Turbidity (NTU)</dt>
+                    <dd class="col-7 mb-2">@Model.Turbidity</dd>
+                    <dt class="col-5 text-muted small">Temperature (°C)</dt>
+                    <dd class="col-7 mb-2">@Model.Temperature</dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (Model.Alerts.Any())
+        {
+            <div class="mt-4">
+                <h6 class="fw-medium mb-2"><i class="bi bi-exclamation-triangle me-2"></i>Triggers Alert(s)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Alert</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var alert in Model.Alerts)
+                            {
+                                <tr>
+                                    <td class="fw-medium">@alert.Title</td>
+                                    <td class="small">@alert.AlertType</td>
+                                    <td>
+                                        @{
+                                            var sevClass = alert.Severity == "Critical" ? "danger" :
+                                                alert.Severity == "High" ? "warning" : "info";
+                                        }
+                                        <span class="badge bg-@sevClass">@alert.Severity</span>
+                                    </td>
+                                    <td><span class="badge bg-secondary">@alert.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+</div>

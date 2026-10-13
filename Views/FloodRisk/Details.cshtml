@@ -1,0 +1,108 @@
+@model FloodRiskDetailsViewModel
+@{
+    ViewData["Title"] = "Risk - " + Model.Canal.CanalName;
+    ViewData["PageTitle"] = "Flood Risk Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-bell-fill me-2 text-info"></i>@Model.Canal.CanalName — Flood Risk
+        </h1>
+    </div>
+    <span class="badge bg-@(Model.LatestAssessment?.RiskLevel == "Critical" ? "danger" :
+        Model.LatestAssessment?.RiskLevel == "High" ? "warning" :
+        Model.LatestAssessment?.RiskLevel == "Moderate" ? "info" : "success") fs-6">
+        @(Model.LatestAssessment?.RiskLevel ?? "Unknown")
+    </span>
+</div>
+
+@if (Model.LatestAssessment != null)
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Latest Assessment</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 text-center mb-3">
+                    <div class="display-3 fw-bold text-@(Model.LatestAssessment.RiskLevel == "Critical" ? "danger" : Model.LatestAssessment.RiskLevel == "High" ? "warning" : "info")">@Model.LatestAssessment.RiskScore</div>
+                    <div class="text-muted small">/ 100</div>
+                </div>
+                <div class="col-md-9">
+                    <table class="table table-borderless table-sm">
+                        <tbody>
+                            <tr>
+                                <th class="text-muted small">Risk Level</th>
+                                <td>@Model.LatestAssessment.RiskLevel</td>
+                                <th class="text-muted small">Model</th>
+                                <td>@Model.LatestAssessment.ModelVersion</td>
+                            </tr>
+                            <tr>
+                                <th class="text-muted small">Assessment Date</th>
+                                <td>@Model.LatestAssessment.AssessmentDate.ToString("g")</td>
+                                <th class="text-muted small">Valid Until</th>
+                                <td>@Model.LatestAssessment.ValidUntil.ToString("g")</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="mt-2">
+                        <label class="form-label fw-medium small">Details</label>
+                        <pre class="bg-light p-3 rounded small">@Model.LatestAssessment.AssessmentDetails</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom">
+        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Assessment History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Score</th>
+                        <th>Level</th>
+                        <th>Model</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.History.Any())
+                    {
+                        @foreach (var h in Model.History)
+                        {
+                            <tr>
+                                <td class="small">@h.AssessmentDate.ToString("g")</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress me-2" style="width: 50px; height: 16px;">
+                                            <div class="progress-bar bg-@(h.RiskLevel == "Critical" ? "danger" : h.RiskLevel == "High" ? "warning" : h.RiskLevel == "Moderate" ? "info" : "success")"
+                                                 style="width: @(h.RiskScore)%"></div>
+                                        </div>
+                                        <span class="small">@h.RiskScore</span>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-@(h.RiskLevel == "Critical" ? "danger" : h.RiskLevel == "High" ? "warning" : h.RiskLevel == "Moderate" ? "info" : "success")">@h.RiskLevel</span></td>
+                                <td class="small">@h.ModelVersion</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">No history available.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

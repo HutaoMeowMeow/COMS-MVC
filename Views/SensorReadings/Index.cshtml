@@ -1,0 +1,187 @@
+@model SensorReadingsViewModel
+@{
+    ViewData["Title"] = "Sensor Monitoring";
+    ViewData["PageTitle"] = "Sensor Monitoring Dashboard";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-graph-up-arrow me-2"></i>Sensor Monitoring Dashboard
+    </h1>
+    <div>
+        <form asp-action="Index" method="get" class="d-flex gap-2">
+            <select name="canalId" class="form-select form-select-sm" onchange="filterByCanal(this.value)">
+                <option value="">All Canals</option>
+                @foreach (var c in Model.Canals)
+                {
+                    <option value="@c.CanalId" selected="@(ViewBag.CurrentCanalId?.ToString() == c.CanalId.ToString())">@c.CanalName</option>
+                }
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    @if (Model.LatestReadings.Any())
+    {
+        @foreach (var reading in Model.LatestReadings)
+        {
+            <div class="col-12 col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between">
+                        <h6 class="mb-0 fw-medium">@reading.Canal?.CanalName</h6>
+                        <span class="small text-muted">@reading.Sensor?.SensorType</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                @{
+                                    var canal = Model.Canals.FirstOrDefault(c => c.CanalId == reading.CanalId);
+                                    var ratio = canal != null && canal.CriticalWaterLevel > 0
+                                        ? (reading.WaterLevel / canal.CriticalWaterLevel) * 100
+                                        : 0;
+                                }
+                                <div class="progress-bar @(reading.WaterLevel >= (canal?.WarningWaterLevel ?? 999) ? "bg-warning" : "bg-success")"
+                                     role="progressbar" style="width: @Math.Min(ratio, 100)%" ></div>
+                            </div>
+                            <span class="fw-bold small">@reading.WaterLevel m</span>
+                        </div>
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span><i class="bi bi-droplet me-1"></i>@reading.FlowRate flow</span>
+                            <span><i class="bi bi-gear me-1"></i>@reading.DebrisLevel% debris</span>
+                        </div>
+                        <div class="mt-2 small text-muted">
+                            <i class="bi bi-clock me-1"></i>Updated: @reading.RecordedAt.ToString("HH:mm:ss")
+                            @if (reading.IsSimulated)
+                            {
+                                <span class="badge bg-secondary text-xs ms-1">SIMULATED</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-graph-up-arrow display-1 text-muted mb-3"></i>
+                    <h4 class="text-muted">No Sensor Data Available</h4>
+                    <p class="text-muted">Generate test readings to see monitoring data.</p>
+                    @foreach (var canal in Model.Canals.Take(3))
+                    {
+                        <form asp-action="GenerateTestReading" method="post" asp-route-canalId="@canal.CanalId" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-primary">
+                                Generate for @canal.CanalName
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom">
+        <h5 class="mb-0"><i class="bi bi-water me-2"></i>Water Level Trend</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="monitoringChart" height="100"></canvas>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Recent Readings</h5>
+        <form id="generateForm" asp-action="GenerateTestReading" method="post" class="d-none">
+            @Html.AntiForgeryToken()
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="readingsTable">
+                <thead>
+                    <tr>
+                        <th>Canal</th>
+                        <th>Sensor</th>
+                        <th>Water Level</th>
+                        <th>Flow Rate</th>
+                        <th>Debris</th>
+                        <th>Turbidity</th>
+                        <th>Temperature</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Readings.Any())
+                    {
+                        @foreach (var r in Model.Readings)
+                        {
+                            <tr>
+                                <td class="small">@r.Canal?.CanalName</td>
+                                <td class="small">@r.Sensor?.SensorCode</td>
+                                <td class="small">@r.WaterLevel m</td>
+                                <td class="small">@r.FlowRate</td>
+                                <td class="small">@r.DebrisLevel%</td>
+                                <td class="small">@r.Turbidity</td>
+                                <td class="small">@r.Temperature°C</td>
+                                <td class="small text-muted">@r.RecordedAt.ToString("HH:mm:ss")</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-3">No readings found.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        var currentCanalId = @((ViewBag.CurrentCanalId ?? (Model.Canals.FirstOrDefault()?.CanalId ?? 0)))
+
+        function filterByCanal(value) {
+            if (value) {
+                window.location.href = '/SensorReadings/Index?canalId=' + value;
+            } else {
+                window.location.href = '/SensorReadings/Index';
+            }
+        }
+
+        var ctx = document.getElementById('monitoringChart').getContext('2d');
+        var chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [
+                { label: 'Water Level (m)', data: [], borderColor: '#0d6efd', fill: true, backgroundColor: 'rgba(13,110,253,0.1)' }
+            ]},
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: false } },
+                plugins: { legend: { display: true } }
+            }
+        });
+
+        function loadChartData() {
+            var url = currentCanalId ? '/SensorReadings/ChartData?canalId=' + currentCanalId : '/SensorReadings/ChartData?canalId=' + (currentCanalId || 1);
+            $.get(url, function (data) {
+                var labels = data.readings.map(function (r) { return new Date(r.recordedAt).toLocaleTimeString(); });
+                var water = data.readings.map(function (r) { return r.waterLevel; });
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = water;
+                chart.update();
+            });
+        }
+        loadChartData();
+        setInterval(loadChartData, 30000);
+    </script>
+}

@@ -1,0 +1,107 @@
+@model List<SupportTicket>
+@{
+    ViewData["Title"] = "Customer Service";
+    ViewData["PageTitle"] = "Customer Service";
+    var unreadByTicket = ViewBag.UnreadByTicket as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var totalUnread = (int)(ViewBag.TotalUnread ?? 0);
+}
+
+<div class="card hero-card mb-4 reveal">
+    <div class="card-body p-4 p-lg-5">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <span class="hero-eyebrow mb-2"><i class="bi bi-headset"></i>Help &amp; Support</span>
+                <h2 class="mb-2">Customer Service @if (totalUnread > 0)
+                    {<span class="badge bg-danger ms-1">@totalUnread new</span>}</h2>
+                <p class="mb-4">Need help with your account, a report, or a technical problem? Our support team is here to assist you.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a asp-controller="CustomerService" asp-action="Create" class="btn btn-light btn-lg px-4">
+                        <i class="bi bi-ticket-detailed me-2"></i>Report a Problem
+                    </a>
+                    <a asp-controller="CustomerService" asp-action="Chat" class="btn btn-outline-light px-4">
+                        <i class="bi bi-chat-dots me-2"></i>Chat with Customer Service
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 d-none d-lg-flex justify-content-end gap-2">
+                <span class="hero-icon-tile"><i class="bi bi-headset"></i></span>
+                <span class="hero-icon-tile"><i class="bi bi-chat-dots"></i></span>
+                <span class="hero-icon-tile"><i class="bi bi-shield-check"></i></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 g-lg-4 mb-4">
+    <div class="col-md-6">
+        <a asp-controller="CustomerService" asp-action="Create" class="support-help-option reveal" style="--i:0">
+            <span class="support-help-icon"><i class="bi bi-ticket-detailed"></i></span>
+            <span>
+                <strong class="d-block">Report a Problem</strong>
+                <small class="report-meta">Account, report, or technical issues — we reply in this conversation.</small>
+            </span>
+        </a>
+    </div>
+    <div class="col-md-6">
+        <a asp-controller="CustomerService" asp-action="Chat" class="support-help-option reveal" style="--i:1">
+            <span class="support-help-icon"><i class="bi bi-chat-dots"></i></span>
+            <span>
+                <strong class="d-block">Chat with Customer Service @if (totalUnread > 0)
+                    {<span class="badge bg-danger ms-1">@totalUnread</span>}</strong>
+                <small class="report-meta">Continue your open conversation or start a new one.</small>
+            </span>
+        </a>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm reveal" style="--i:2">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-folder2-open me-2 text-primary"></i>My Support Requests</h5>
+        <a asp-controller="CustomerService" asp-action="MyTickets" class="text-decoration-none small">View All</a>
+    </div>
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <ul class="list-group list-group-flush">
+                @foreach (var ticket in Model)
+                {
+                    var sc = ticket.Status switch
+                    {
+                        "Resolved" => "st-resolved",
+                        "In Progress" => "st-in-progress",
+                        "Open" => "st-pending",
+                        "Waiting for User" => "st-under-review",
+                        "Closed" => "st-low",
+                        _ => "st-pending"
+                    };
+                    <li class="list-group-item border-0 py-2 px-0">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="min-w-0">
+                                <h6 class="mb-1 fw-medium text-truncate">
+                                    #@ticket.SupportTicketId — @ticket.Subject
+                                    @if (unreadByTicket.TryGetValue(ticket.SupportTicketId, out var u) && u > 0)
+                                    {
+                                        <span class="badge bg-danger ms-1">@u new</span>
+                                    }
+                                </h6>
+                                <small class="report-meta d-block">@ticket.Category · @ticket.Priority · @ticket.UpdatedAt.ToString("MMM dd, yyyy")</small>
+                            </div>
+                            <span class="status-badge @sc flex-shrink-0">@ticket.Status</span>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon"><i class="bi bi-headset"></i></div>
+                <h6>No support requests yet</h6>
+                <p>When you need help with your account or the website, submit a request and chat with our team here.</p>
+                <a asp-controller="CustomerService" asp-action="Create" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>Report a Problem
+                </a>
+            </div>
+        }
+    </div>
+</div>

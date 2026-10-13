@@ -1,0 +1,70 @@
+@model Announcement
+@{
+    ViewData["Title"] = "Create Announcement";
+    ViewData["PageTitle"] = "Create Announcement";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-plus-lg me-2"></i>Create Announcement</h1>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<form asp-action="Create" method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Announcement Details</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label"></label>
+                <input asp-for="Title" class="form-control" placeholder="Announcement title" maxlength="150" data-char-counter="150" />
+                <span asp-validation-for="Title" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Content" class="form-label"></label>
+                <textarea asp-for="Content" class="form-control" rows="6" maxlength="5000" data-char-counter="5000"
+                          placeholder="Enter announcement content..."></textarea>
+                <div class="form-text"><span data-char-count-for="Content">0</span>/5000 characters</div>
+                <span asp-validation-for="Content" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="imageFile">Image</label>
+                <input id="imageFile" name="imageFile" class="form-control" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" />
+                <span class="text-danger small field-validation-valid" data-valmsg-for="imageFile" data-valmsg-replace="true"></span>
+                <div class="form-text">Upload an optional image (max 5MB). Accepted formats: JPG, JPEG, PNG only. GIFs and videos are not allowed.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="TargetAudience" class="form-label"></label>
+                <select asp-for="TargetAudience" class="form-select" asp-items="(SelectList)ViewBag.Audiences">
+                    <option value="">Select audience</option>
+                </select>
+                <span asp-validation-for="TargetAudience" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Location" class="form-label"></label>
+                <input asp-for="Location" class="form-control" placeholder="Specific location (optional)" maxlength="200" data-char-counter="200" />
+                <div class="form-text"><span data-char-count-for="Location">0</span>/200 characters</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-lg me-1"></i>Post Announcement
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
