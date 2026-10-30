@@ -1,0 +1,142 @@
+@model TrustedDevicesViewModel
+@{
+    ViewData["Title"] = "Trusted Devices";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-lg-5">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+                        <div>
+                            <h3 class="fw-bold mb-1">Trusted Devices</h3>
+                            <p class="text-muted small mb-0">
+                                Devices listed here can skip the authenticator prompt for up to 30 days.
+                                Expired devices are removed automatically. Revoke any device you no
+                                longer use or do not recognize.
+                            </p>
+                        </div>
+                        <a asp-action="Profile" class="btn btn-outline-secondary btn-sm">Back to Profile</a>
+                    </div>
+
+                    @if (TempData["SuccessMessage"] is string success)
+                    {
+                        <div class="alert alert-success small py-2">@success</div>
+                    }
+                    @if (TempData["ErrorMessage"] is string error)
+                    {
+                        <div class="alert alert-danger small py-2">@error</div>
+                    }
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-4">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small">Two-factor status</div>
+                                <div class="fw-semibold">
+                                    @(Model.TwoFactorEnabled ? "Enabled" : "Disabled")
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small">Authenticator</div>
+                                <div class="fw-semibold">@(Model.HasAuthenticator ? "Configured" : "Not configured")</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small">Recovery codes left</div>
+                                <div class="fw-semibold">@Model.RecoveryCodesLeft</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!Model.TwoFactorEnabled)
+                    {
+                        <div class="alert alert-warning small">
+                            Two-factor authentication is disabled. Enable it before trusting devices.
+                        </div>
+                        <a asp-action="EnableTwoFactor" class="btn btn-primary btn-sm">Set Up 2FA</a>
+                    }
+                    else if (Model.Devices.Count == 0)
+                    {
+                        <div class="alert alert-info small mb-0">
+                            No trusted devices. You will be asked for an authenticator code on each new device.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>First trusted</th>
+                                        <th>Last used</th>
+                                        <th>Expires</th>
+                                        <th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var device in Model.Devices)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">@device.DeviceName</div>
+                                                @if (!string.IsNullOrWhiteSpace(device.UserAgent))
+                                                {
+                                                    <div class="text-muted small text-truncate" style="max-width: 320px;"
+                                                         title="@device.UserAgent">@device.UserAgent</div>
+                                                }
+                                            </td>
+                                            <td class="small">@PhTime.ToPhString(device.CreatedAtUtc)</td>
+                                            <td class="small">@PhTime.ToPhString(device.LastSeenAtUtc)</td>
+                                            <td class="small">@PhTime.ToPhString(device.ExpiresAtUtc)</td>
+                                            <td class="text-end">
+                                                <form asp-action="RevokeTrustedDevice" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="deviceId" value="@device.TrustedDeviceId" />
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm">Revoke</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+<form asp-action="RevokeAllTrustedDevices" method="post"
+      data-confirm="true" data-confirm-title="Revoke All Trusted Devices"
+      data-confirm-message="Revoke all trusted devices? Every device will need a 2FA code next time."
+      data-confirm-destructive="true">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                Revoke All Trusted Devices
+                            </button>
+                        </form>
+                    }
+
+                    @if (Model.TwoFactorEnabled)
+                    {
+                        <hr class="my-4" />
+                        <div class="d-flex flex-wrap gap-2">
+                            <a asp-action="EnableTwoFactor" class="btn btn-outline-secondary btn-sm">Authenticator Setup</a>
+                            <form asp-action="GenerateRecoveryCodes" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-secondary btn-sm">New Recovery Codes</button>
+                            </form>
+<form asp-action="ResetAuthenticator" method="post" class="d-inline"
+      data-confirm="true" data-confirm-title="Reset Authenticator"
+      data-confirm-message="Reset your authenticator? You will need to set it up again and 2FA will be temporarily disabled."
+      data-confirm-destructive="true">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-warning btn-sm">Reset Authenticator</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

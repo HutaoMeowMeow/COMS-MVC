@@ -1,0 +1,87 @@
+@model TwoFactorLoginViewModel
+@{
+    ViewData["Title"] = "Two-Factor Verification";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-7 col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-lg-5">
+                    <div class="text-center mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary mb-3"
+                             style="width: 64px; height: 64px;">
+                            <i class="bi bi-shield-lock fs-2"></i>
+                        </div>
+                        <h3 class="fw-bold mb-1">Two-factor verification</h3>
+                        <p class="text-muted small mb-0">
+                            Enter the current 6-digit code from your authenticator app.
+                            You can also use one of your recovery codes.
+                        </p>
+                    </div>
+
+                    @if (TempData["ErrorMessage"] is string error)
+                    {
+                        <div class="alert alert-danger small py-2">@error</div>
+                    }
+
+                    <form asp-action="TwoFactor" method="post" autocomplete="off">
+                        @Html.AntiForgeryToken()
+                        @Html.ValidationSummary(true, "", new { @class = "alert alert-danger small py-2" })
+
+                        <input type="hidden" asp-for="ChallengeId" />
+                        <input type="hidden" asp-for="ReturnUrl" />
+                        <input type="hidden" asp-for="RememberMe" />
+
+                        <div class="mb-3">
+                            <label asp-for="Code" class="form-label fw-semibold small"></label>
+                            <input asp-for="Code"
+                                   class="form-control form-control-lg text-center font-monospace"
+                                   inputmode="text"
+                                   autocomplete="one-time-code"
+                                   autocapitalize="characters"
+                                   spellcheck="false"
+                                   placeholder="123456"
+                                   autofocus />
+                            <span asp-validation-for="Code" class="text-danger small"></span>
+                            <div class="form-text">
+                                Authenticator codes rotate every 30 seconds. Recovery codes look like
+                                <span class="font-monospace">ABCDE-FGHIJ</span>.
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input asp-for="RememberDevice" class="form-check-input" />
+                            <label asp-for="RememberDevice" class="form-check-label small"></label>
+                            <div class="form-text">
+                                Only use this on a device you personally control. The trust lasts
+                                @(ViewBag.TrustedDeviceDays ?? 30) days and can be revoked from your profile.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="DeviceName" class="form-label small text-muted"></label>
+                            <input asp-for="DeviceName" class="form-control form-control-sm"
+                                   placeholder="e.g. My office laptop" maxlength="200" />
+                            <span asp-validation-for="DeviceName" class="text-danger small"></span>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 py-2">
+                            <i class="bi bi-check2-circle me-1"></i>Verify and Sign In
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-4 pt-3 border-top">
+                        <a asp-action="Login" class="small text-decoration-none">
+                            <i class="bi bi-arrow-left me-1"></i>Back to sign in
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

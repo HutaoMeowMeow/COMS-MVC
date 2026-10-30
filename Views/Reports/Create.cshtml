@@ -1,0 +1,446 @@
+@model CommunityReportFormViewModel
+@{
+    ViewData["Title"] = "Report an Issue";
+    ViewData["PageTitle"] = "Report Canal Problem";
+}
+
+<div class="page-head">
+    <div>
+        <h1 class="h3"><i class="bi bi-pencil-square me-2 page-icon"></i>Report a Canal Problem</h1>
+        <p class="page-sub">Tell us where the problem is — your LGU will investigate from there.</p>
+    </div>
+    <a asp-action="MyReports" class="btn btn-outline-secondary">
+        <i class="bi bi-folder2-open me-1"></i>My Reports
+    </a>
+</div>
+
+<div class="step-indicator" aria-hidden="true">
+    <div class="step is-active"><span class="step-num">1</span><span class="step-text">Problem<small>What &amp; where</small></span></div>
+    <div class="step"><span class="step-num">2</span><span class="step-text">Details<small>Describe &amp; photo</small></span></div>
+    <div class="step"><span class="step-num">3</span><span class="step-text">Location<small>Pin on map</small></span></div>
+    <div class="step"><span class="step-num">4</span><span class="step-text">Submit<small>Send to LGU</small></span></div>
+</div>
+
+<form asp-action="Create" enctype="multipart/form-data" method="post" id="reportForm">
+    @Html.AntiForgeryToken()
+    @if (Model.CanalId.HasValue)
+    {
+        @Html.HiddenFor(m => m.CanalId)
+    }
+    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger small py-2" })
+
+    <section class="report-section reveal" style="--i:0">
+        <div class="section-head">
+            <span class="section-num">1</span>
+            <div>
+                <h5>What is the problem?</h5>
+                <p>Choose the type and give it a short, clear title.</p>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="ReportType" class="form-label"></label>
+                    <select asp-for="ReportType" class="form-select form-select-lg" asp-items="(SelectList)ViewBag.ReportTypes">
+                    </select>
+                    <span asp-validation-for="ReportType" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Title" class="form-label"></label>
+                    <input asp-for="Title" class="form-control form-control-lg" maxlength="150" data-char-counter="150" placeholder="e.g. Drainage near the road keeps getting blocked" />
+                    <div class="form-text"><span data-char-count-for="Title">0</span>/150 characters</div>
+                    <span asp-validation-for="Title" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="report-section scroll-reveal">
+        <div class="section-head">
+            <span class="section-num">2</span>
+            <div>
+                <h5>Describe it and add a photo</h5>
+                <p>Details and a picture help responders act faster.</p>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="4" maxlength="2000" data-char-counter="2000"
+                          placeholder="What do you see? When does it happen — during heavy rain, every day? Is water accumulating?"></textarea>
+                <div class="form-text"><span data-char-count-for="Description">0</span>/2000 characters</div>
+                <span asp-validation-for="Description" class="text-danger small"></span>
+            </div>
+            <div>
+                <label asp-for="Photo" class="form-label"></label>
+                <input asp-for="Photo" class="form-control" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" id="photoInput" />
+                <span asp-validation-for="Photo" class="text-danger small"></span>
+                <div class="form-text">Optional — JPG, JPEG or PNG only, max 5MB. Accepted formats: JPG, JPEG, PNG only. GIFs and videos are not allowed. Photos are checked automatically: they must clearly show a canal, drainage, flood, or related condition.</div>
+                <div class="form-text text-danger d-none" id="photoClientError" role="alert"></div>
+                <div class="mt-2 d-none" id="photoPreviewWrap">
+                    <img id="photoPreview" class="img-fluid rounded border" style="max-height: 220px;" alt="Photo preview" />
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="report-section scroll-reveal">
+        <div class="section-head">
+            <span class="section-num">3</span>
+            <div>
+                <h5>Pin the exact location</h5>
+                <p>Place the marker where the problem is — this is how the LGU finds it.</p>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                <span class="small text-muted"><i class="bi bi-hand-index me-1"></i>Tap the map or drag the pin (Cebu only)</span>
+                <button type="button" id="locateMeBtn" class="btn btn-sm btn-outline-primary">
+                    <span class="btn-label"><i class="bi bi-crosshair me-1"></i>Use my location</span>
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div id="geoStatus" class="small mb-2 d-none" role="status"></div>
+            <div id="reportPickerMap" style="height: 380px;" class="map-frame"></div>
+            <div id="mapLocationMsg" class="alert alert-warning map-location-alert d-none mt-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+                <span id="mapLocationMsgText"></span>
+            </div>
+            <span asp-validation-for="Latitude" class="text-danger small"></span>
+            <div class="row g-2 mt-2">
+                <div class="col-md-6">
+                    <label asp-for="Latitude" class="form-label small"></label>
+                    <input asp-for="Latitude" class="form-control" type="number" step="0.000001" placeholder="10.315700" readonly />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Longitude" class="form-label small"></label>
+                    <input asp-for="Longitude" class="form-control" type="number" step="0.000001" placeholder="123.885400" readonly />
+                </div>
+            </div>
+            <div class="mt-3">
+                <label asp-for="Location" class="form-label"></label>
+                <input asp-for="Location" class="form-control" maxlength="200" data-char-counter="200" placeholder="Landmark / street / sitio near the pin (optional)" />
+                <div class="form-text"><span data-char-count-for="Location">0</span>/200 characters</div>
+                <span asp-validation-for="Location" class="text-danger small"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="report-section scroll-reveal">
+        <div class="section-head">
+            <span class="section-num">4</span>
+            <div>
+                <h5>Review and submit</h5>
+                <p>Your report goes straight to LGU personnel for review.</p>
+            </div>
+        </div>
+        <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <a asp-action="MyReports" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Cancel
+            </a>
+            <button type="submit" class="btn btn-success btn-lg px-4" id="submitReportBtn">
+                <span class="btn-label"><i class="bi bi-send me-1"></i>Submit Report</span>
+                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+        </div>
+    </section>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var latInput = document.getElementById('Latitude');
+            var lngInput = document.getElementById('Longitude');
+            // Cebu province bounds: lat 9.30-11.45, lng 123.20-124.60. Center: Cebu City.
+            var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
+            var cebuCenter = [10.3157, 123.8854];
+            var defaultLat = parseFloat(latInput.value) || cebuCenter[0];
+            var defaultLng = parseFloat(lngInput.value) || cebuCenter[1];
+            if (!cebuBounds.contains([defaultLat, defaultLng])) {
+                defaultLat = cebuCenter[0];
+                defaultLng = cebuCenter[1];
+            }
+
+            var map = L.map('reportPickerMap', {
+                maxBounds: cebuBounds,
+                maxBoundsViscosity: 1.0,
+                minZoom: 9,
+                maxZoom: 18
+            }).setView([defaultLat, defaultLng], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Cebu report-area polygons — the single source of truth is the
+            // static GeoJSON served below; the server validates report POSTs
+            // against the exact same polygons (Services/CebuBoundaryService.cs).
+            // The permitted area covers Cebu Island (Cebu City, Mandaue,
+            // Talisay and every Cebu Island municipality) PLUS Mactan Island
+            // (Lapu-Lapu City, Cordova) and Olango Island (Lapu-Lapu City
+            // barangays). Everything else — Bohol, Leyte, Negros, Bantayan,
+            // Camotes… — is dimmed with a translucent negative mask while the
+            // permitted islands keep full map detail, roads and labels. These
+            // are real island outlines, not a bounding box.
+            var cebuRings = [];   // array of [lat, lng] rings
+            var cebuReady = false;
+
+            function pointInPolygon(lat, lng, ring) {
+                var inside = false;
+                var j = ring.length - 1;
+                for (var i = 0; i < ring.length; i++) {
+                    var latI = ring[i][0], lngI = ring[i][1];
+                    var latJ = ring[j][0], lngJ = ring[j][1];
+                    var intersects = (latI > lat) !== (latJ > lat)
+                        && lng < (lngJ - lngI) * (lat - latI) / (latJ - latI) + lngI;
+                    if (intersects) inside = !inside;
+                    j = i;
+                }
+                return inside;
+            }
+
+            fetch('@Url.Content("~/data/cebu-report-area.geojson")')
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+                .then(function (data) {
+                    if (!data || !data.features || !data.features.length) return;
+                    data.features.forEach(function (feature) {
+                        var geom = feature.geometry;
+                        if (!geom) return;
+                        var polys = (geom.type === 'MultiPolygon') ? geom.coordinates : [geom.coordinates];
+                        polys.forEach(function (poly) {
+                            var ring = poly[0];
+                            if (!ring || ring.length < 3) return;
+                            // GeoJSON order is [lng, lat]; Leaflet wants [lat, lng].
+                            cebuRings.push(ring.map(function (pt) { return [pt[1], pt[0]]; }));
+                        });
+                    });
+                    if (!cebuRings.length) return;
+                    cebuReady = true;
+
+                    // Negative mask: a huge world rectangle with every
+                    // permitted island as a hole. Land outside the reporting
+                    // area dims out — tiles stay valid, no broken imagery.
+                    var world = [[85, -180], [85, 180], [-85, 180], [-85, -180]];
+                    L.polygon([world].concat(cebuRings), {
+                        stroke: false,
+                        fillColor: '#334155',
+                        fillOpacity: 0.72,
+                        interactive: false
+                    }).addTo(map);
+
+                    // Visible outlines so the permitted islands are clear.
+                    cebuRings.forEach(function (ring) {
+                        L.polygon(ring, {
+                            color: '#2b6cb0',
+                            weight: 2,
+                            fill: false,
+                            interactive: false
+                        }).addTo(map);
+                    });
+                })
+                .catch(function () {
+                    // If the boundary file cannot be fetched the rectangle
+                    // still clamps panning and inCebu() falls back to it —
+                    // the server keeps enforcing the authoritative polygons.
+                });
+
+
+            var marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+            // Last position the user actually confirmed inside Cebu: an
+            // invalid drag or geolocation result restores THIS, never a
+            // random reset to Cebu City center.
+            var lastValid = L.latLng(defaultLat, defaultLng);
+
+            function inCebu(lat, lng) {
+                // Polygon wins once loaded; the legacy rectangle is the
+                // fallback while the (local static) GeoJSON fetch is in
+                // flight, so interaction is never held hostage by the loader.
+                if (cebuReady) {
+                    for (var r = 0; r < cebuRings.length; r++) {
+                        if (pointInPolygon(lat, lng, cebuRings[r])) return true;
+                    }
+                    return false;
+                }
+                return lat >= 9.30 && lat <= 11.45 && lng >= 123.20 && lng <= 124.60;
+            }
+
+            function syncInputs(lat, lng) {
+                latInput.value = lat.toFixed(6);
+                lngInput.value = lng.toFixed(6);
+            }
+            syncInputs(defaultLat, defaultLng);
+
+            var mapLocationMsg = document.getElementById('mapLocationMsg');
+            var mapLocationMsgText = document.getElementById('mapLocationMsgText');
+            function showLocationError(msg) {
+                // Inline, non-blocking validation message right under the map
+                // (replaces the old native alert() / silent label writes).
+                if (mapLocationMsg && mapLocationMsgText) {
+                    mapLocationMsgText.textContent = msg;
+                    mapLocationMsg.classList.remove('d-none');
+                }
+            }
+            function clearLocationError() {
+                if (mapLocationMsg && mapLocationMsgText) {
+                    mapLocationMsgText.textContent = '';
+                    mapLocationMsg.classList.add('d-none');
+                }
+            }
+            function acceptMarker(lat, lng, panTo) {
+                lastValid = L.latLng(lat, lng);
+                marker.setLatLng(lastValid);
+                syncInputs(lat, lng);
+                if (panTo) map.panTo(lastValid);
+                clearLocationError();
+            }
+
+            marker.on('dragend', function () {
+                var pos = marker.getLatLng();
+                if (!inCebu(pos.lat, pos.lng)) {
+                    // Restore the previous valid pin; do not move the map.
+                    marker.setLatLng(lastValid);
+                    showLocationError('That point is outside Cebu. The pin was returned to your last valid location — please pick a spot inside Cebu.');
+                    return;
+                }
+                acceptMarker(pos.lat, pos.lng, true);
+            });
+
+            map.on('click', function (e) {
+                if (!inCebu(e.latlng.lat, e.latlng.lng)) {
+                    showLocationError('That point is outside Cebu. Please pick a location inside Cebu.');
+                    return;
+                }
+                acceptMarker(e.latlng.lat, e.latlng.lng, false);
+            });
+
+            // "Use my location": browser GPS via the Geolocation API, requested
+            // ONLY on explicit tap (never on page load, never tracked).
+            var locateBtn = document.getElementById('locateMeBtn');
+            var geoStatus = document.getElementById('geoStatus');
+            function setLocating(active) {
+                if (!locateBtn) return;
+                locateBtn.disabled = active;
+                var label = locateBtn.querySelector('.btn-label');
+                var spin = locateBtn.querySelector('.spinner-border');
+                if (label) label.classList.toggle('opacity-50', active);
+                if (spin) spin.classList.toggle('d-none', !active);
+            }
+            function showGeo(msg, isError) {
+                if (!geoStatus) return;
+                geoStatus.classList.remove('d-none', 'text-muted', 'text-danger', 'text-success');
+                geoStatus.classList.add(isError ? 'text-danger' : 'text-success');
+                geoStatus.textContent = msg;
+            }
+            if (locateBtn) {
+                if (!navigator.geolocation) {
+                    locateBtn.disabled = true;
+                    showGeo('Geolocation is not supported by this browser. Please pin the location manually.', true);
+                } else {
+                    locateBtn.addEventListener('click', function () {
+                        setLocating(true);
+                        showGeo('Locating… please allow location access if asked.', false);
+                        geoStatus.classList.remove('text-success');
+                        geoStatus.classList.add('text-muted');
+                        navigator.geolocation.getCurrentPosition(
+                            function (pos) {
+                                setLocating(false);
+                                var lat = pos.coords.latitude;
+                                var lng = pos.coords.longitude;
+                                if (!inCebu(lat, lng)) {
+                                    // Marker stays at the previous valid pin.
+                                    showGeo('Your current location is outside Cebu. Please drag the pin to the site in Cebu.', true);
+                                    showLocationError('Your current location is outside Cebu. The pin stays at your last valid location — please drag it to the site in Cebu.');
+                                    return;
+                                }
+                                // Exact browser result: replace marker position,
+                                // center + zoom so it is visible, sync the fields.
+                                acceptMarker(lat, lng, false);
+                                map.setView([lat, lng], 16);
+                                var acc = (typeof pos.coords.accuracy === 'number' && isFinite(pos.coords.accuracy))
+                                    ? ' Location accuracy: ±' + Math.round(pos.coords.accuracy) + ' meters.'
+                                    : '';
+                                showGeo('Location found.' + acc + ' You can still drag the pin to adjust.', false);
+                            },
+                            function (err) {
+                                setLocating(false);
+                                var msg;
+                                if (err && err.code === 1) {
+                                    msg = 'Location access was denied. Please allow location access in your browser settings or select your location manually on the map.';
+                                } else if (err && err.code === 2) {
+                                    msg = 'Your current location could not be determined. Please select your location manually on the map.';
+                                } else if (err && err.code === 3) {
+                                    msg = 'Location request timed out. Please try again or select your location manually.';
+                                } else {
+                                    msg = 'Could not get your location. Please select your location manually on the map.';
+                                }
+                                showGeo(msg, true);
+                            },
+                            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+                        );
+                    });
+                }
+            }
+
+            setTimeout(function () { map.invalidateSize(); }, 200);
+
+            // Photo preview for valid JPEG/PNG only (presentation only — the
+            // file input posts untouched and the server re-validates everything).
+            var photoInput = document.getElementById('photoInput');
+            var previewWrap = document.getElementById('photoPreviewWrap');
+            var preview = document.getElementById('photoPreview');
+            var photoClientError = document.getElementById('photoClientError');
+            var photoObjectUrl = null;
+            function showPhotoError(msg) {
+                if (photoClientError) {
+                    photoClientError.textContent = msg;
+                    photoClientError.classList.remove('d-none');
+                }
+            }
+            function clearPhotoError() {
+                if (photoClientError) {
+                    photoClientError.textContent = '';
+                    photoClientError.classList.add('d-none');
+                }
+            }
+            if (photoInput && preview) {
+                photoInput.addEventListener('change', function () {
+                    clearPhotoError();
+                    if (photoObjectUrl) { URL.revokeObjectURL(photoObjectUrl); photoObjectUrl = null; }
+                    var file = photoInput.files && photoInput.files[0];
+                    if (!file) { previewWrap.classList.add('d-none'); return; }
+                    var validType = file.type === 'image/jpeg' || file.type === 'image/png'
+                        || /\.jpe?g$/i.test(file.name) || /\.png$/i.test(file.name);
+                    if (!validType) {
+                        photoInput.value = '';
+                        previewWrap.classList.add('d-none');
+                        showPhotoError('Accepted formats: JPG, JPEG, PNG only. GIFs and videos are not allowed.');
+                        return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                        photoInput.value = '';
+                        previewWrap.classList.add('d-none');
+                        showPhotoError('Photo size must be less than 5MB.');
+                        return;
+                    }
+                    photoObjectUrl = URL.createObjectURL(file);
+                    preview.src = photoObjectUrl;
+                    previewWrap.classList.remove('d-none');
+                });
+            }
+
+            // Submit loading state.
+            var form = document.getElementById('reportForm');
+            var submit = document.getElementById('submitReportBtn');
+            if (form && submit) {
+                form.addEventListener('submit', function () {
+                    if (!form.checkValidity()) return;
+                    submit.disabled = true;
+                    submit.querySelector('.btn-label').classList.add('opacity-50');
+                    submit.querySelector('.spinner-border').classList.remove('d-none');
+                });
+            }
+        });
+    </script>
+}

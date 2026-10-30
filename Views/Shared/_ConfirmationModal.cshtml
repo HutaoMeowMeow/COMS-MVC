@@ -1,0 +1,112 @@
+@* Reusable confirmation modal for all destructive/important actions.
+   Trigger elements use data-confirm="true" with data-confirm-message and
+   optional data-confirm-title / data-confirm-destructive attributes.
+   On confirm, the triggering form is submitted or the action URL is POSTed. *@
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-semibold" id="confirmModalLabel">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage" class="mb-0"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="confirmCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmConfirm" data-loading>
+                    <span id="confirmConfirmLabel">Confirm</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modalEl = document.getElementById('confirmModal');
+    if (!modalEl) return;
+    var modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+    var triggerEl = null;
+    var originalTriggerHtml = null;
+    var pendingSubmit = false;
+
+    var titleEl = document.getElementById('confirmModalLabel');
+    var msgEl = document.getElementById('confirmMessage');
+    var confirmBtn = document.getElementById('confirmConfirm');
+    var confirmLabel = document.getElementById('confirmConfirmLabel');
+
+    modalEl.addEventListener('show.bs.modal', function () {
+        if (!triggerEl) return;
+        var title = triggerEl.getAttribute('data-confirm-title') || 'Confirm Action';
+        var message = triggerEl.getAttribute('data-confirm-message') || 'Are you sure?';
+        var destructive = triggerEl.getAttribute('data-confirm-destructive') === 'true';
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        confirmBtn.classList.toggle('btn-danger', destructive);
+        confirmBtn.classList.toggle('btn-outline-secondary', !destructive);
+        confirmBtn.disabled = false;
+        pendingSubmit = false;
+        confirmLabel.textContent = 'Confirm';
+        confirmBtn.innerHTML = '<span id="confirmConfirmLabel">Confirm</span>';
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (triggerEl) {
+            try { triggerEl.focus(); } catch (e) { }
+            triggerEl = null;
+        }
+        pendingSubmit = false;
+        confirmBtn.disabled = false;
+        confirmLabel.textContent = 'Confirm';
+        confirmBtn.innerHTML = '<span id="confirmConfirmLabel">Confirm</span>';
+    });
+
+    confirmBtn.addEventListener('click', function () {
+        if (pendingSubmit) return;
+        pendingSubmit = true;
+        confirmBtn.disabled = true;
+        confirmLabel.textContent = 'Processing…';
+        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span><span id="confirmConfirmLabel">Processing…</span>';
+
+        var form = triggerEl && triggerEl.closest('form');
+        if (form) {
+            form.submit();
+        } else {
+            var url = triggerEl.getAttribute('data-confirm-action');
+            if (url) {
+                var tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = '__RequestVerificationToken';
+                var tokenElem = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (tokenElem) tokenInput.value = tokenElem.value;
+                var f = document.createElement('form');
+                f.method = 'POST';
+                f.action = url;
+                f.appendChild(tokenInput);
+                document.body.appendChild(f);
+                f.submit();
+            }
+        }
+        modal.hide();
+    });
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-confirm="true"]:not([type="submit"])');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        triggerEl = btn;
+        modal.show();
+    });
+
+    document.addEventListener('submit', function (e) {
+        var form = e.target.closest('[data-confirm="true"]');
+        if (!form) return;
+        e.preventDefault();
+        e.stopPropagation();
+        triggerEl = form.querySelector('button[type="submit"], input[type="submit"]') || form;
+        modal.show();
+    });
+})();
+</script>

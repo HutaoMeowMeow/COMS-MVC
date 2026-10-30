@@ -1,0 +1,14 @@
+global using COMS_MVC.Data;
+global using COMS_MVC.Models;
+global using COMS_MVC.Services;
+global using COMS_MVC.Hubs;
+global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Hosting;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.AspNetCore.Http.Extensions;
+global using Microsoft.AspNetCore.Identity;
+global using Microsoft.AspNetCore.SignalR;
+global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.EntityFrameworkCore;
+global using System.ComponentModel.DataAnnotations;

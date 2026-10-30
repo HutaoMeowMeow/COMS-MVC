@@ -1,0 +1,63 @@
+@model TwoFactorRecoveryCodesViewModel
+@{
+    ViewData["Title"] = "Recovery Codes";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-lg-5">
+                    <h3 class="fw-bold mb-1">Save your recovery codes</h3>
+                    <p class="text-muted small mb-4">
+                        Each code can be used once to sign in if you lose access to your authenticator app.
+                        Store them in a password manager or print them and keep them somewhere safe.
+                    </p>
+
+                    <div class="alert alert-warning small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        These codes will not be shown again. Generating new codes replaces all existing ones.
+                    </div>
+
+                    @if (Model.RecoveryCodes.Count == 0)
+                    {
+                        <div class="alert alert-danger small">
+                            No recovery codes were generated. Please generate a new set from your profile.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row row-cols-1 row-cols-sm-2 g-2 mb-4" id="recoveryCodes">
+                            @foreach (var code in Model.RecoveryCodes)
+                            {
+                                <div class="col">
+                                    <div class="border rounded bg-light px-3 py-2 font-monospace text-center">@code</div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="copyCodesBtn">
+                                <i class="bi bi-clipboard me-1"></i>Copy Codes
+                            </button>
+                            <a asp-action="Profile" class="btn btn-primary btn-sm">I have saved these codes</a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('copyCodesBtn')?.addEventListener('click', function () {
+            var codes = Array.from(document.querySelectorAll('#recoveryCodes .font-monospace'))
+                .map(function (el) { return el.textContent.trim(); })
+                .join('\n');
+            navigator.clipboard?.writeText(codes);
+            this.textContent = 'Copied';
+            setTimeout(() => { this.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Codes'; }, 1500);
+        });
+    </script>
+}

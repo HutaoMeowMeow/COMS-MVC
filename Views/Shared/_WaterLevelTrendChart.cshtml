@@ -1,0 +1,20 @@
+@* Shared dashboard Water Level Trend panel body.
+   Data comes from /SensorReadings/WaterLevelTrendJson (real stored readings
+   for the visible canals, last 5 hours). No demonstration values. *@
+<div class="card-body">
+    <div id="waterTrendLoading" class="text-center text-muted small py-4">
+        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading water-level trend…
+    </div>
+    <div id="waterTrendError" class="alert alert-warning small d-none mb-0" role="alert">
+        <i class="bi bi-exclamation-triangle me-1"></i>Could not load water-level readings. Please try again.
+    </div>
+    <div id="waterTrendEmpty" class="empty-state d-none">
+        <div class="empty-icon"><i class="bi bi-water"></i></div>
+        <h6>No water-level readings yet</h6>
+        <p class="mb-0">Readings will appear here after the sensors record water levels for the selected period.</p>
+    </div>
+    <div id="waterTrendNote" class="alert alert-info small d-none" role="status"></div>
+    <div class="water-trend-canvas">
+        <canvas id="waterLevelTrendChart" role="img" aria-label="Water level trend for monitored canals"></canvas>
+    </div>
+</div>

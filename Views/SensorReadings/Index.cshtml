@@ -1,0 +1,412 @@
+@model SensorReadingsViewModel
+@{
+    ViewData["Title"] = "Sensor Monitoring";
+    ViewData["PageTitle"] = "Sensor Monitoring Dashboard";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-graph-up-arrow me-2"></i>Sensor Monitoring Dashboard
+    </h1>
+    <div>
+        <form asp-action="Index" method="get" class="d-flex flex-wrap gap-2 align-items-center">
+            <div class="d-flex align-items-center gap-1">
+                <label for="fromDate" class="small text-muted mb-0">From</label>
+                <input id="fromDate" type="date" name="fromDate" class="form-control form-control-sm" value="@ViewData["FromDate"]" aria-label="From date" />
+                <input type="time" name="fromTime" class="form-control form-control-sm" value="@ViewData["FromTime"]" aria-label="From time" />
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <label for="toDate" class="small text-muted mb-0">To</label>
+                <input id="toDate" type="date" name="toDate" class="form-control form-control-sm" value="@ViewData["ToDate"]" aria-label="To date" />
+                <input type="time" name="toTime" class="form-control form-control-sm" value="@ViewData["ToTime"]" aria-label="To time" />
+            </div>
+            <select name="canalId" class="form-select form-select-sm w-auto" aria-label="Filter by canal" onchange="this.form.submit()">
+                <option value="">All Canals</option>
+                @foreach (var c in Model.Canals)
+                {
+                    <option value="@c.CanalId" selected="@(ViewBag.CurrentCanalId?.ToString() == c.CanalId.ToString())">@c.CanalName</option>
+                }
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+            <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Reset</a>
+        </form>
+        @if (string.IsNullOrWhiteSpace(ViewData["FromDate"] as string) && string.IsNullOrWhiteSpace(ViewData["ToDate"] as string))
+        {
+            <div class="form-text small text-muted text-end mt-1">Showing the last 5 hours by default.</div>
+        }
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    @if (Model.LatestReadings.Any())
+    {
+        @foreach (var reading in Model.LatestReadings)
+        {
+            <div class="col-12 col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between">
+                        <h6 class="mb-0 fw-medium">@reading.Canal?.CanalName</h6>
+                        <span class="small text-muted">@reading.Sensor?.SensorType</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                @{
+                                    var canal = Model.Canals.FirstOrDefault(c => c.CanalId == reading.CanalId);
+                                    var ratio = canal != null && canal.CriticalWaterLevel > 0
+                                        ? (reading.WaterLevel / canal.CriticalWaterLevel) * 100
+                                        : 0;
+                                }
+                                <div class="progress-bar @(reading.WaterLevel >= (canal?.WarningWaterLevel ?? 999) ? "bg-warning" : "bg-success")"
+                                     role="progressbar" style="width: @Math.Min(ratio, 100)%" ></div>
+                            </div>
+                            <span class="fw-bold small">@reading.WaterLevel m</span>
+                        </div>
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span><i class="bi bi-droplet me-1"></i>@reading.FlowRate flow</span>
+                            <span><i class="bi bi-trash me-1"></i>Debris: @reading.DebrisLevel</span>
+                        </div>
+                        <div class="mt-2 small text-muted">
+                            <i class="bi bi-clock me-1"></i>Updated: @COMS_MVC.Helpers.PhTime.ToPhString(reading.RecordedAt, "HH:mm:ss")
+                            @if (reading.IsSimulated)
+                            {
+                                <span class="badge bg-secondary text-xs ms-1">SIMULATED</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-graph-up-arrow display-1 text-muted mb-3"></i>
+                    <h4 class="text-muted">No Sensor Data Available</h4>
+                    <p class="text-muted">Generate test readings to see monitoring data.</p>
+                    @foreach (var canal in Model.Canals.Take(3))
+                    {
+                        <form asp-action="GenerateTestReading" method="post" asp-route-canalId="@canal.CanalId" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-primary">
+                                Generate for @canal.CanalName
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom">
+        <h5 class="mb-0"><i class="bi bi-water me-2"></i>Water Level Trend</h5>
+    </div>
+    <div class="card-body">
+        <div id="chartLoading" class="text-center text-muted small py-3">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading water-level readings…
+        </div>
+        <div id="chartError" class="alert alert-warning small d-none" role="alert">
+            <i class="bi bi-exclamation-triangle me-1"></i>Could not load chart data. Please try again.
+        </div>
+        <canvas id="monitoringChart" height="100" aria-label="Water level trend chart"></canvas>
+        <div id="chartEmpty" class="text-center text-muted small mt-2 d-none">
+            <i class="bi bi-info-circle me-1"></i>No water-level readings found for the selected canal and date range.
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Recent Readings</h5>
+        <form id="generateForm" asp-action="GenerateTestReading" method="post" class="d-none">
+            @Html.AntiForgeryToken()
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="readingsTable">
+                <thead>
+                    <tr>
+                        <th>Canal</th>
+                        <th>Sensor</th>
+                        <th>Water Level</th>
+                        <th>Flow Rate</th>
+                        <th>Debris</th>
+                        <th>Turbidity</th>
+                        <th>Temperature</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Readings.Any())
+                    {
+                        @foreach (var r in Model.Readings)
+                        {
+                            <tr>
+                                <td class="small">@r.Canal?.CanalName</td>
+                                <td class="small">@r.Sensor?.SensorCode</td>
+                                <td class="small">@r.WaterLevel m</td>
+                                <td class="small">@r.FlowRate</td>
+                                <td class="small">@r.DebrisLevel</td>
+                                <td class="small">@r.Turbidity</td>
+                                <td class="small">@r.Temperature°C</td>
+                                <td class="small text-muted">@COMS_MVC.Helpers.PhTime.ToPhString(r.RecordedAt, "yyyy-MM-dd HH:mm:ss")</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-3">No readings found.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @{
+            var currentPage = (int)(ViewBag.Page ?? 1);
+            var totalPages = (int)(ViewBag.TotalPages ?? 1);
+            var totalReadings = (int)(ViewBag.TotalReadings ?? Model.Readings.Count);
+        }
+        @if (totalPages > 1)
+        {
+            <nav class="mt-3" aria-label="Sensor reading pages">
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link"
+                           asp-action="Index"
+                           asp-route-canalId="@ViewBag.CurrentCanalId"
+                           asp-route-fromDate="@ViewData["FromDate"]"
+                           asp-route-fromTime="@ViewData["FromTime"]"
+                           asp-route-toDate="@ViewData["ToDate"]"
+                           asp-route-toTime="@ViewData["ToTime"]"
+                           asp-route-page="@(currentPage - 1)">Previous</a>
+                    </li>
+                    @for (var p = Math.Max(1, currentPage - 2); p <= Math.Min(totalPages, currentPage + 2); p++)
+                    {
+                        <li class="page-item @(p == currentPage ? "active" : "")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-canalId="@ViewBag.CurrentCanalId"
+                               asp-route-fromDate="@ViewData["FromDate"]"
+                               asp-route-fromTime="@ViewData["FromTime"]"
+                               asp-route-toDate="@ViewData["ToDate"]"
+                               asp-route-toTime="@ViewData["ToTime"]"
+                               asp-route-page="@p">@p</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link"
+                           asp-action="Index"
+                           asp-route-canalId="@ViewBag.CurrentCanalId"
+                           asp-route-fromDate="@ViewData["FromDate"]"
+                           asp-route-fromTime="@ViewData["FromTime"]"
+                           asp-route-toDate="@ViewData["ToDate"]"
+                           asp-route-toTime="@ViewData["ToTime"]"
+                           asp-route-page="@(currentPage + 1)">Next</a>
+                    </li>
+                </ul>
+                <p class="text-center text-muted small mt-2 mb-0">@totalReadings reading(s) · page @currentPage of @totalPages</p>
+            </nav>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        var currentCanalId = @((ViewBag.CurrentCanalId ?? (Model.Canals.FirstOrDefault()?.CanalId ?? 0)));
+        var fromDate = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData["FromDate"] as string ?? string.Empty));
+        var fromTime = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData["FromTime"] as string ?? string.Empty));
+        var toDate = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData["ToDate"] as string ?? string.Empty));
+        var toTime = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData["ToTime"] as string ?? string.Empty));
+
+        var chartPoints = [];
+        var chart = null;
+        var chartRequestInFlight = false;
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        function parseUtc(value) {
+            if (!value) return null;
+            var iso = /Z$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z';
+            var date = new Date(iso);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
+        // Convert the stored UTC instant to Philippine wall-clock time
+        // (UTC+8, no DST) without depending on the viewer's timezone.
+        function phParts(value) {
+            var date = parseUtc(value);
+            if (!date) return null;
+            var ph = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+            return {
+                date: monthNames[ph.getUTCMonth()] + ' ' + ph.getUTCDate() + ', ' + ph.getUTCFullYear(),
+                time: ph.getUTCHours().toString().padStart(2, '0') + ':' +
+                      ph.getUTCMinutes().toString().padStart(2, '0') + ':' +
+                      ph.getUTCSeconds().toString().padStart(2, '0')
+            };
+        }
+
+        function phLabel(value) {
+            var p = phParts(value);
+            return p ? p.date + ' · ' + p.time : String(value || '');
+        }
+
+        function showChartEmpty(show) {
+            document.getElementById('chartEmpty').classList.toggle('d-none', !show);
+        }
+
+        function showChartLoading(show) {
+            document.getElementById('chartLoading').classList.toggle('d-none', !show);
+        }
+
+        function showChartError(show) {
+            document.getElementById('chartError').classList.toggle('d-none', !show);
+        }
+
+        function destroyChart() {
+            if (chart) {
+                chart.destroy();
+                chart = null;
+            }
+        }
+
+        function createChart() {
+            destroyChart();
+            var canvas = document.getElementById('monitoringChart');
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Water Level (m)',
+                        data: [],
+                        borderColor: '#0d6efd',
+                        fill: true,
+                        backgroundColor: 'rgba(13,110,253,0.1)',
+                        tension: 0.2,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHitRadius: 12,
+                        spanGaps: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: false,
+                    normalized: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            ticks: { autoSkip: true, maxTicksLimit: 8, maxRotation: 0 },
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: 'Water Level (m)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true },
+                        title: { display: true, text: 'Water Level Trend (Asia/Manila)' },
+                        tooltip: {
+                            callbacks: {
+                                title: function (items) {
+                                    var point = chartPoints[items[0].dataIndex];
+                                    return point ? phLabel(point.recordedAt) : '';
+                                },
+                                label: function (context) {
+                                    var point = chartPoints[context.dataIndex];
+                                    if (!point) return '';
+                                    return 'Water level: ' + Number(point.waterLevel).toFixed(2) + ' m';
+                                },
+                                afterLabel: function (context) {
+                                    var point = chartPoints[context.dataIndex];
+                                    if (!point) return '';
+                                    var lines = [
+                                        'Flow: ' + Number(point.flowRate).toFixed(2) + ' m³/s',
+                                        'Debris: ' + Number(point.debrisLevel).toFixed(1) + ' %',
+                                        'Turbidity: ' + Number(point.turbidity).toFixed(1) + ' NTU',
+                                        'Temperature: ' + Number(point.temperature).toFixed(1) + ' °C'
+                                    ];
+                                    return lines;
+                                },
+                                afterBody: function (items) {
+                                    var point = chartPoints[items[0].dataIndex];
+                                    if (!point) return '';
+                                    return point.isAggregate
+                                        ? 'Aggregate point (PH time, UTC+8)'
+                                        : (point.aggregation === 'actual-peak'
+                                            ? 'Actual reading · peak-preserved sample (PH time, UTC+8)'
+                                            : 'Actual reading (PH time, UTC+8)');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadChartData() {
+            if (chartRequestInFlight) return;
+            if (!currentCanalId) {
+                chartPoints = [];
+                createChart();
+                showChartLoading(false);
+                showChartError(false);
+                showChartEmpty(true);
+                return;
+            }
+
+            chartRequestInFlight = true;
+            showChartLoading(true);
+            showChartError(false);
+            showChartEmpty(false);
+
+            var params = new URLSearchParams({ canalId: currentCanalId, hours: '5', maxPoints: '300' });
+            if (fromDate) params.set('fromDate', fromDate);
+            if (fromTime) params.set('fromTime', fromTime);
+            if (toDate) params.set('toDate', toDate);
+            if (toTime) params.set('toTime', toTime);
+
+            $.get('/SensorReadings/ChartData?' + params.toString(), function (data) {
+                if (!data || !data.readings || data.readings.length === 0) {
+                    chartPoints = [];
+                    createChart();
+                    showChartEmpty(true);
+                    return;
+                }
+                chartPoints = data.readings;
+                createChart();
+                chart.data.labels = data.readings.map(function (r) { return phLabel(r.recordedAt); });
+                chart.data.datasets[0].data = data.readings.map(function (r) { return r.waterLevel; });
+                chart.update('none');
+            }).fail(function () {
+                chartPoints = [];
+                createChart();
+                showChartError(true);
+            }).always(function () {
+                chartRequestInFlight = false;
+                showChartLoading(false);
+            });
+        }
+
+        createChart();
+        loadChartData();
+
+        // Refresh only while the page is visible; guards against duplicate
+        // in-flight requests and background-tab churn.
+        setInterval(function () {
+            if (!document.hidden) loadChartData();
+        }, 60000);
+    </script>
+}

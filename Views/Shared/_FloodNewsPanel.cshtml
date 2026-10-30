@@ -1,0 +1,52 @@
+@* Compact "Latest Flood News" panel for the Flood Risk Index page.
+   Model: FloodNewsResult (may be null when the panel fetch failed).
+   Informational only — never interacts with risk scores. *@
+@model FloodNewsResult
+
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-newspaper me-2 text-primary"></i>Latest Flood News</h5>
+        <a asp-controller="FloodNews" asp-action="Index" class="text-decoration-none small">View All Flood News</a>
+    </div>
+    <div class="card-body">
+        @if (Model == null || Model.IsUnavailable)
+        {
+            <p class="text-muted small mb-0">
+                <i class="bi bi-cloud-slash me-1"></i>Flood news is temporarily unavailable.
+            </p>
+        }
+        else if (!Model.Articles.Any())
+        {
+            <p class="text-muted small mb-0">
+                <i class="bi bi-newspaper me-1"></i>No recent flood news available.
+                <a asp-controller="FloodNews" asp-action="Index" class="text-decoration-none">View All Flood News</a>
+            </p>
+        }
+        else
+        {
+            @if (Model.IsStale)
+            {
+                <p class="text-muted small"><i class="bi bi-exclamation-triangle me-1"></i>Showing cached news.</p>
+            }
+            <ul class="list-group list-group-flush">
+                @foreach (var article in Model.Articles.Take(4))
+                {
+                    <li class="list-group-item border-0 px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="min-w-0">
+                                <a href="@article.Url" target="_blank" rel="noopener noreferrer" class="fw-medium text-decoration-none d-block text-truncate">@article.Title</a>
+                                <small class="text-muted">
+                                    @article.Source · @(article.PublishedAt.HasValue ? article.PublishedAt.Value.UtcDateTime.AddHours(8).ToString("MMM d · h:mm tt") : "Recent")
+                                    @if (article.AffectedAreas.Any())
+                                    {
+                                        <text> · @string.Join(", ", article.AffectedAreas)</text>
+                                    }
+                                </small>
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>

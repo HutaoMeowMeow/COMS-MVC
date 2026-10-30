@@ -1,0 +1,92 @@
+@model IEnumerable<Sensor>
+@{
+    ViewData["Title"] = "Sensors";
+    ViewData["PageTitle"] = "Sensor Management";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-gear-fill me-2"></i>Sensor Management
+    </h1>
+    @if (User.IsInRole("Admin"))
+    {
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Add Sensor
+        </a>
+    }
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Sensor Code</th>
+                        <th>Type</th>
+                        <th>Canal</th>
+                        <th>Status</th>
+                        <th>Last Reading</th>
+                        <th>Last Communication</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sensor in Model)
+                    {
+                        <tr>
+                            <td class="fw-medium">@sensor.SensorCode</td>
+                            <td class="small">@sensor.SensorType</td>
+                            <td class="small">@(sensor.Canal?.CanalName ?? "N/A")</td>
+                            <td>
+                                @{
+                                    var statusClass = sensor.Status switch
+                                    {
+                                        "Online" => "success",
+                                        "Offline" => "danger",
+                                        "Maintenance" => "warning",
+                                        _ => "secondary"
+                                    };
+                                }
+                                <span class="badge bg-@statusClass">@sensor.Status</span>
+                            </td>
+                            <td class="small text-muted">@sensor.LastReading.ToString("g")</td>
+                            <td class="small text-muted">@sensor.LastCommunication.ToString("g")</td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a asp-action="Details" asp-route-id="@sensor.SensorId" class="btn btn-outline-primary" title="Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <a asp-action="Edit" asp-route-id="@sensor.SensorId" class="btn btn-outline-warning" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a asp-action="Delete" asp-route-id="@sensor.SensorId" class="btn btn-outline-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!Model.Any())
+        {
+            <div class="text-center py-5">
+                <i class="bi bi-gear-fill fs-1 text-muted mb-3"></i>
+                <h4 class="text-muted">No sensors registered</h4>
+                @if (User.IsInRole("Admin"))
+                {
+                    <p class="text-muted">Get started by adding your first sensor.</p>
+                    <a asp-action="Create" class="btn btn-primary">
+                        <i class="bi bi-plus-lg me-1"></i>Add Sensor
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>

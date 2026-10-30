@@ -1,0 +1,446 @@
+/* COMS theme layer: light/dark mode via CSS variables.
+   Light values match the existing design. Dark uses charcoal surfaces.
+   Activated by [data-theme] on <html>, synced with Bootstrap [data-bs-theme].
+   No layout, spacing, font, or markup changes here — colors/surfaces only. */
+
+:root {
+    --theme-bg: #f1f5f9;
+    --theme-bg-secondary: #ffffff;
+    --theme-card: #ffffff;
+    --theme-text: #1a202c;
+    --theme-text-secondary: #5b6b7f;
+    --theme-border: #e2e8f0;
+    --theme-input-bg: #ffffff;
+    --theme-input-border: #cbd5e0;
+    --theme-header-bg: #ffffff;
+    --theme-hover: rgba(43, 108, 176, .05);
+    --theme-table-header-bg: #f8f9fa;
+    --theme-table-header-text: #4a5568;
+}
+
+[data-theme="dark"] {
+    --theme-bg: #121212;
+    --theme-bg-secondary: #181818;
+    --theme-card: #1e1e1e;
+    --theme-text: #f5f5f5;
+    --theme-text-secondary: #b8b8b8;
+    --theme-border: #333333;
+    --theme-input-bg: #242424;
+    --theme-input-border: #3a3a3a;
+    --theme-header-bg: #1e1e1e;
+    --theme-hover: rgba(255, 255, 255, .06);
+    --theme-table-header-bg: #2a2a2a;
+    --theme-table-header-text: #f5f5f5;
+    color-scheme: dark;
+}
+
+/* Fast, subtle theme transition only. */
+body, .card, .stat-card, .report-card, .table-card, .report-section,
+.top-navbar, .footer, .content-area, .main-content, .dropdown-menu,
+.modal-content, .list-group-item, .form-control, .form-select,
+.input-group-text, .card-header, .empty-state, .map-frame {
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+
+/* ---------- Base ---------- */
+body {
+    background-color: var(--theme-bg);
+    color: var(--theme-text);
+}
+
+.main-content, .content-area {
+    background-color: var(--theme-bg);
+    color: var(--theme-text);
+}
+
+/* ---------- Top navbar (overrides bg-white / navbar-light / text-dark) ---------- */
+.top-navbar {
+    background-color: var(--theme-header-bg) !important;
+    border-color: var(--theme-border) !important;
+}
+
+.top-navbar .navbar-brand {
+    color: var(--theme-text) !important;
+}
+
+.top-navbar .nav-link.text-dark,
+.top-navbar .dropdown-toggle.text-dark,
+.top-navbar #userDropdown {
+    color: var(--theme-text) !important;
+}
+
+[data-theme="dark"] .top-navbar .navbar-toggler {
+    border-color: var(--theme-border);
+}
+
+[data-theme="dark"] .top-navbar .navbar-toggler-icon {
+    filter: invert(1);
+}
+
+/* ---------- Sidebar: already dark gradient, keep unchanged ---------- */
+
+/* ---------- Hero/banner: pin light text (Bootstrap reboot gives every
+   heading an explicit color which otherwise beats the inherited white) ---------- */
+[data-theme="dark"] .hero-card,
+[data-theme="dark"] .hero-card h1,
+[data-theme="dark"] .hero-card h2,
+[data-theme="dark"] .hero-card h3,
+[data-theme="dark"] .hero-card p {
+    color: #fff;
+}
+
+[data-theme="dark"] .hero-card .hero-eyebrow {
+    color: #bee3f8;
+}
+
+[data-theme="dark"] .hero-card small,
+[data-theme="dark"] .hero-card .text-muted {
+    color: rgba(255, 255, 255, .75) !important;
+}
+
+/* Hero/banner must stay white-on-navy in BOTH themes. The hero element also
+   carries the generic .card class, whose theme text color would otherwise
+   override the inherited white (equal specificity, later stylesheet), and the
+   Bootstrap reboot heading color then inherits that dark value. */
+.hero-card,
+.hero-card h1,
+.hero-card h2,
+.hero-card h3,
+.hero-card p {
+    color: #fff;
+}
+
+.hero-card .hero-eyebrow {
+    color: #bee3f8;
+}
+
+.hero-card small {
+    color: rgba(255, 255, 255, .82);
+}
+
+/* ---------- Footer ---------- */
+.footer {
+    background: var(--theme-bg-secondary);
+    border-color: var(--theme-border);
+}
+
+.footer .text-muted {
+    color: var(--theme-text-secondary) !important;
+}
+
+/* ---------- Cards / panels ---------- */
+.card, .stat-card, .report-card, .table-card, .report-section {
+    background-color: var(--theme-card);
+    border-color: var(--theme-border);
+    color: var(--theme-text);
+}
+
+.card-header {
+    background-color: var(--theme-header-bg);
+    border-color: var(--theme-border);
+    color: var(--theme-text);
+}
+
+.card-header h5, .card-header h6,
+.report-card h6, .stat-card .stat-num {
+    color: var(--theme-text);
+}
+
+.report-section .section-head {
+    background: var(--theme-header-bg);
+    border-color: var(--theme-border);
+}
+
+.report-section .section-head h5 {
+    color: var(--theme-text);
+}
+
+.report-section .section-head p {
+    color: var(--theme-text-secondary);
+}
+
+/* ---------- Muted / secondary text (dark only; light keeps Bootstrap/site values) ---------- */
+[data-theme="dark"] .text-muted,
+[data-theme="dark"] .report-meta,
+[data-theme="dark"] .page-head .page-sub,
+[data-theme="dark"] .stat-card .stat-label,
+[data-theme="dark"] .stat-card .stat-sub,
+[data-theme="dark"] .detail-list dt,
+[data-theme="dark"] .empty-state,
+[data-theme="dark"] .empty-state p {
+    color: var(--theme-text-secondary) !important;
+}
+
+[data-theme="dark"] .empty-state h6 {
+    color: var(--theme-text);
+}
+
+/* ---------- Tables ---------- */
+[data-theme="dark"] .table {
+    --bs-table-bg: var(--theme-card);
+    --bs-table-color: var(--theme-text);
+    --bs-table-border-color: var(--theme-border);
+    --bs-table-hover-bg: var(--theme-hover);
+    --bs-table-hover-color: var(--theme-text);
+    --bs-table-striped-bg: #242424;
+    --bs-table-striped-color: var(--theme-text);
+    color: var(--theme-text);
+    border-color: var(--theme-border);
+}
+
+/* Plain thead (no utility class): dark surface instead of transparent/white. */
+[data-theme="dark"] .table thead th {
+    background-color: var(--theme-table-header-bg);
+    color: var(--theme-table-header-text);
+    border-bottom-color: var(--theme-border);
+}
+
+/* thead.table-light pins light vars in Bootstrap; re-pin them for dark.
+   Used by Alerts, Canals, Users, Sensors, Reports, Notifications tables. */
+[data-theme="dark"] .table-light,
+[data-theme="dark"] thead.table-light {
+    --bs-table-bg: var(--theme-table-header-bg);
+    --bs-table-color: var(--theme-table-header-text);
+    --bs-table-border-color: var(--theme-border);
+    --bs-table-hover-bg: var(--theme-hover);
+    --bs-table-hover-color: var(--theme-table-header-text);
+    --bs-table-striped-bg: var(--theme-table-header-bg);
+    --bs-table-striped-color: var(--theme-table-header-text);
+}
+
+[data-theme="dark"] thead.table-light > tr > th,
+[data-theme="dark"] thead.table-light > tr > td {
+    background-color: var(--theme-table-header-bg);
+    color: var(--theme-table-header-text);
+    border-color: var(--theme-border);
+}
+
+[data-theme="dark"] .table tbody td,
+[data-theme="dark"] .table tbody th {
+    border-color: var(--theme-border);
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover {
+    background-color: var(--theme-hover);
+}
+
+[data-theme="dark"] .table .text-muted {
+    color: var(--theme-text-secondary) !important;
+}
+
+/* ---------- Lists ---------- */
+.list-group-item {
+    background-color: var(--theme-card);
+    border-color: var(--theme-border);
+    color: var(--theme-text);
+}
+
+.list-group-item h6 {
+    color: var(--theme-text);
+}
+
+/* ---------- Forms ---------- */
+.form-label, .form-check-label, .col-form-label {
+    color: var(--theme-text);
+}
+
+.form-control, .form-select, textarea.form-control {
+    background-color: var(--theme-input-bg);
+    border-color: var(--theme-input-border);
+    color: var(--theme-text);
+}
+
+.form-control::placeholder {
+    color: var(--theme-text-secondary);
+    opacity: .8;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--theme-input-bg);
+    color: var(--theme-text);
+}
+
+.form-control:disabled, .form-control[readonly],
+.form-select:disabled {
+    background-color: var(--theme-bg-secondary);
+    color: var(--theme-text-secondary);
+}
+
+.input-group-text {
+    background-color: var(--theme-bg-secondary);
+    border-color: var(--theme-input-border);
+    color: var(--theme-text-secondary);
+}
+
+.form-check-input {
+    background-color: var(--theme-input-bg);
+    border-color: var(--theme-input-border);
+}
+
+/* ---------- Dropdowns / modals / popovers (extends Bootstrap dark) ---------- */
+.dropdown-menu {
+    background-color: var(--theme-card);
+    border-color: var(--theme-border);
+}
+
+.dropdown-item {
+    color: var(--theme-text);
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: var(--theme-hover);
+    color: var(--theme-text);
+}
+
+.dropdown-divider {
+    border-color: var(--theme-border);
+}
+
+.modal-content {
+    background-color: var(--theme-card);
+    border-color: var(--theme-border);
+    color: var(--theme-text);
+}
+
+.modal-header, .modal-footer {
+    border-color: var(--theme-border);
+}
+
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* ---------- Pagination ---------- */
+.page-link {
+    background-color: var(--theme-card);
+    border-color: var(--theme-border);
+    color: var(--theme-text);
+}
+
+.page-link:hover {
+    background-color: var(--theme-hover);
+    border-color: var(--theme-border);
+    color: var(--theme-text);
+}
+
+/* ---------- Bootstrap white-surface utilities used in markup ---------- */
+[data-theme="dark"] .bg-white {
+    background-color: var(--theme-card) !important;
+    color: var(--theme-text);
+}
+
+[data-theme="dark"] .bg-light {
+    background-color: var(--theme-bg-secondary) !important;
+    color: var(--theme-text);
+}
+
+/* Dark-text utilities: flip to light on dark surfaces, but never inside
+   colored badges (e.g. bg-warning + text-dark must stay dark-on-yellow). */
+[data-theme="dark"] .text-dark:not(.badge):not(.btn),
+[data-theme="dark"] .text-body:not(.badge):not(.btn),
+[data-theme="dark"] .text-black:not(.badge):not(.btn) {
+    color: var(--theme-text) !important;
+}
+
+/* Report-type chips (badge bg-light text-dark): keep light text on dark chip. */
+[data-theme="dark"] .badge.bg-light {
+    color: var(--theme-text) !important;
+}
+
+/* Native select popup options follow the theme. */
+[data-theme="dark"] option {
+    background-color: var(--theme-card);
+    color: var(--theme-text);
+}
+
+/* Outline-secondary buttons (theme toggle, table actions) stay legible. */
+[data-theme="dark"] .btn-outline-secondary {
+    color: #c9d1d9;
+    border-color: #4a4a4a;
+}
+
+[data-theme="dark"] .btn-outline-secondary:hover,
+[data-theme="dark"] .btn-outline-secondary:focus {
+    background-color: #2e2e2e;
+    border-color: #5a5a5a;
+    color: #fff;
+}
+
+/* Keep hero CTA readable: light button on navy gradient stays light. */
+[data-theme="dark"] .hero-card .btn-light {
+    background-color: #f8f9fa !important;
+    color: #1a202c !important;
+}
+
+/* ---------- Detail lists / description blocks ---------- */
+[data-theme="dark"] .detail-list dd {
+    color: var(--theme-text);
+}
+
+[data-theme="dark"] .card.bg-light,
+[data-theme="dark"] .card-body.bg-light {
+    background-color: var(--theme-bg-secondary) !important;
+}
+
+/* ---------- Skeleton / map / chart ---------- */
+.skeleton {
+    background: var(--theme-bg-secondary);
+}
+
+.map-frame {
+    border-color: var(--theme-border);
+}
+
+/* ---------- Auth pages: brand panel already dark; adapt the form panel ---------- */
+[data-theme="dark"] .auth-form {
+    background-color: var(--theme-card) !important;
+    color: var(--theme-text);
+}
+
+[data-theme="dark"] .auth-form .text-muted {
+    color: var(--theme-text-secondary) !important;
+}
+
+[data-theme="dark"] .auth-form h3 {
+    color: var(--theme-text);
+}
+
+[data-theme="dark"] .auth-form .input-group-text.bg-light {
+    background-color: var(--theme-bg-secondary) !important;
+}
+
+/* Non-transparent logo keeps a white chip so it stays readable on dark. */
+[data-theme="dark"] img[src*="COMS-LOGO.png"]:not([src*="transparent"]) {
+    background: #fff;
+    border-radius: .5rem;
+    padding: 4px;
+}
+
+/* ---------- Theme toggle ---------- */
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    min-height: 38px;
+}
+
+.theme-toggle:focus-visible {
+    outline: 2px solid #3182ce;
+    outline-offset: 2px;
+}
+
+.theme-toggle-floating {
+    position: fixed;
+    top: .75rem;
+    right: .75rem;
+    z-index: 1050;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body, .card, .stat-card, .report-card, .table-card, .report-section,
+    .top-navbar, .footer, .content-area, .main-content, .dropdown-menu,
+    .modal-content, .list-group-item, .form-control, .form-select,
+    .input-group-text, .card-header, .empty-state, .map-frame {
+        transition: none;
+    }
+}
