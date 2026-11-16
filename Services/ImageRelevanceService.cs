@@ -94,7 +94,9 @@ namespace COMS_MVC.Services
             }
         }
 
-        /// <summary>Diagnostic feature vector (also used to tune thresholds).</summary>
+        /// <summary>
+        /// Diagnostic feature vector (also used to tune thresholds).
+        /// </summary>
         public sealed class Features
         {
             public double MeanLuminance;
@@ -112,13 +114,17 @@ namespace COMS_MVC.Services
             public double SkinFraction;     // informational only; never vetoes
         }
 
-        public static Features Extract(SKBitmap bitmap)
+        /// <summary>
+        /// Analyzes a managed R,G,B,A pixel buffer (see <see cref="SkiaPixelBuffer"/>).
+        /// Every value is read from managed memory — no per-pixel native calls.
+        /// </summary>
+        public static Features Extract(byte[] rgba, int width, int height, int stride)
         {
             // Stride-sampled grid: bounded work, roughly size-invariant.
             const int budget = 40000;
-            var stride = Math.Max(1, (int)Math.Sqrt((double)bitmap.Width * bitmap.Height / budget));
-            var w = Math.Max(8, bitmap.Width / stride);
-            var h = Math.Max(8, bitmap.Height / stride);
+            var sampleStride = Math.Max(1, (int)Math.Sqrt((double)width * height / budget));
+            var w = Math.Max(8, width / sampleStride);
+            var h = Math.Max(8, height / sampleStride);
 
             var lum = new double[w * h];
             var n = w * h;
@@ -129,10 +135,11 @@ namespace COMS_MVC.Services
 
             for (var y = 0; y < h; y++)
             {
+                var row = (y * sampleStride) * stride;
                 for (var x = 0; x < w; x++)
                 {
-                    var px = bitmap.GetPixel(x * stride, y * stride);
-                    double r = px.Red, g = px.Green, b = px.Blue;
+                    var px = row + (x * sampleStride) * 4;
+                    double r = rgba[px + 0], g = rgba[px + 1], b = rgba[px + 2];
                     var l = 0.299 * r + 0.587 * g + 0.114 * b;
                     lum[y * w + x] = l;
                     lumSum += l;
@@ -168,17 +175,19 @@ namespace COMS_MVC.Services
 
             // Flat runs: full-resolution horizontal runs of identical quantized
             // color (len >= 12) sampled on every 8th row — catches flat vector
-            // fills and text bars of screenshots/memes/documents.
+            // fills and text bars of screenshots/memes/documents. Runs over the
+            // managed buffer, so a 4096-wide image is a fast byte scan.
             var flat = 0;
             var flatN = 0;
-            for (var y = 0; y < bitmap.Height; y += 8)
+            for (var y = 0; y < height; y += 8)
             {
+                var row = y * stride;
                 var run = 1;
                 var prev = -1;
-                for (var x = 0; x < bitmap.Width; x++)
+                for (var x = 0; x < width; x++)
                 {
-                    var px = bitmap.GetPixel(x, y);
-                    var key = (((int)px.Red / 16) << 8) | (((int)px.Green / 16) << 4) | ((int)px.Blue / 16);
+                    var px = row + x * 4;
+                    var key = (((int)rgba[px + 0] / 16) << 8) | (((int)rgba[px + 1] / 16) << 4) | ((int)rgba[px + 2] / 16);
                     if (key == prev) run++;
                     else
                     {
@@ -242,100 +251,133 @@ namespace COMS_MVC.Services
             if (bytes == null || bytes.Length == 0)
                 return Uncertain("The photo could not be read. Please upload a clearer photo.");
 
-            SKBitmap bitmap;
+            string? error = null;
+            Features? features = null;
+
             try
             {
-                bitmap = SKBitmap.Decode(bytes);
+                // All SkiaSharp native work happens inside the process-wide
+                // gate, and pixels are copied to managed memory in one bulk
+                // operation. See SkiaSharpGate / SkiaPixelBuffer for why:
+                // concurrent or per-pixel native access can raise an
+                // uncatchable AccessViolationException that terminates the
+                // process (exit code 0xffffffff).
+                (error, features) = SkiaSharpGate.Run(() =>
+                {
+                    using var bitmap = SKBitmap.Decode(bytes);
+                    if (bitmap == null)
+                    {
+                        _logger.LogWarning("Image relevance: decoder returned no bitmap.");
+                        return ("The photo could not be decoded. Please upload a clearer photo.", (Features?)null);
+                    }
+
+                    if (bitmap.Width < 64 || bitmap.Height < 64)
+                    {
+                        return ("The photo is too small to assess. Please upload a clearer photo.", (Features?)null);
+                    }
+
+                    if (!SkiaPixelBuffer.TryCopy(bitmap, out var rgba, out var width, out var height, out var stride))
+                    {
+                        _logger.LogWarning(
+                            "Image relevance: could not copy pixels (colorType={ColorType}, {W}x{H}).",
+                            bitmap.ColorType, bitmap.Width, bitmap.Height);
+                        return ("The photo could not be read. Please upload a clearer photo.", (Features?)null);
+                    }
+
+                    _logger.LogDebug(
+                        "Image relevance: analyzed {W}x{H} ({Bytes:N0} bytes pixel buffer).",
+                        width, height, rgba.Length);
+
+                    return (null, (Features?)Extract(rgba, width, height, stride));
+                });
             }
-            catch
+            catch (Exception ex)
             {
-                return Uncertain("The photo could not be decoded. Please upload a clearer photo.");
+                _logger.LogError(ex, "Image relevance: analysis failed.");
+                return Uncertain("The photo could not be analyzed. Please upload a clearer photo.");
             }
-            if (bitmap == null)
-                return Uncertain("The photo could not be decoded. Please upload a clearer photo.");
 
-            using (bitmap)
+            if (error != null || features == null)
             {
-                if (bitmap.Width < 64 || bitmap.Height < 64)
-                    return Uncertain("The photo is too small to assess. Please upload a clearer photo.");
-
-                var f = Extract(bitmap);
-
-                // 1. Quality gate: never guess on unreadable input.
-                if (f.DarkFraction > DarkFractionLimit || f.MeanLuminance < MeanLuminanceFloor)
-                    return Uncertain("The photo is too dark to assess. Please upload a brighter, clearer photo.");
-                if (f.BlurVariance < BlurVarianceFloor)
-                    return Uncertain("The photo is too blurry to assess. Please upload a sharper photo.");
-
-                var water = f.WaterFraction;
-                var murk = f.MurkFraction;
-                var debris = f.DebrisTexture;
-                var structure = f.StructureFraction;
-
-                // 2. Synthetic graphics (screenshots, memes, documents, logos):
-                //    flat fills plus crisp text-like edges, without the broad
-                //    concrete-gray masses of real outdoor scenes.
-                if (f.FlatFraction > GraphicsFlatFloor && debris < GraphicsTextureCeiling
-                    && f.EdgeDensity > GraphicsEdgeFloor && water < 0.30 && structure < 0.30)
-                    return Reject("The image looks like a screenshot, meme, document, or graphic rather than a photo of a canal, drainage, or flood condition.");
-
-                // 3. Smooth images with no water evidence (portraits, illustrations,
-                //    plain objects): not canal evidence. A person IN a canal/flood
-                //    photo does not trigger this because that photo has water.
-                if (f.FlatFraction > 0.50 && debris < 4.0 && f.EdgeDensity < 0.008 && water < 0.25)
-                    return Reject("This image does not appear to show a canal obstruction, drainage issue, flooding, or another condition monitored by COMS. Please upload a relevant image.");
-
-                // 4. Vivid uniform blue with no murk/texture: pools, aquariums,
-                //    clear skies — water without flood evidence.
-                if (f.VividBlueFraction > PoolBlueFloor && debris < PoolTextureCeiling && murk < 0.08)
-                    return Reject("The image shows clear blue water without visible flood, debris, or drainage conditions.");
-
-                // 5. Open water without corroboration (sea, lake, calm river):
-                //    no murk, no texture, no structure — nothing to assess.
-                if (water > 0.25 && debris < 5.0 && murk < 0.08 && f.EdgeDensity < 0.01 && structure < 0.10)
-                    return Reject("The image shows open water without visible flood, debris, or drainage conditions.");
-
-                // 6. No COMS evidence at all (food, animals, isolated objects).
-                if (water < 0.04 && murk < 0.10 && debris < 7.0 && structure < 0.10 && f.EdgeDensity < 0.03)
-                    return Reject("This image does not appear to show a canal obstruction, drainage issue, flooding, or another condition monitored by COMS. Please upload a relevant image.");
-
-                // 7. Strong corroborated combos -> Relevant + suggested category.
-                // Blocked canal: water + structure + heavy clutter.
-                if (water > 0.05 && structure > 0.12 && debris > 8.0)
-                    return Accept("The photo shows water in a built structure with heavy accumulated material consistent with a blocked canal or drain.", "Blocked Canal",
-                        45 + (int)(30 * Math.Min(1, (debris - 8.0) / 8.0)));
-                // Flooding: extensive murky water with ripple/texture witness plus
-                // a second witness (blue-green water, structures, dense edges,
-                // or a vast expanse) so bare dirt and smooth darkened photos
-                // do not qualify.
-                if (murk > 0.32 && water > 0.10 && debris > 3.5
-                    && (f.BlueGreenFraction > 0.05 || structure > 0.08 || f.EdgeDensity > 0.01 || water > 0.60))
-                    return Accept("The photo shows extensive murky floodwater consistent with flooding.", "Flooding",
-                        45 + (int)(30 * Math.Min(1, (murk - 0.32) * 3)));
-                // Garbage/debris: water + heavy clutter.
-                if (water > 0.06 && debris > 9.0)
-                    return Accept("The photo shows waste-like clutter in or near water consistent with garbage or debris.", "Garbage / Debris",
-                        45 + (int)(30 * Math.Min(1, (debris - 9.0) / 8.0)));
-                // Damaged canal: concrete structure + dense cracking edges + water.
-                if (structure > 0.15 && f.EdgeDensity > 0.008 && water > 0.04)
-                    return Accept("The photo shows a concrete structure with dense cracking and water consistent with a damaged canal.", "Damaged Canal",
-                        45 + (int)(30 * Math.Min(1, (f.EdgeDensity - 0.008) * 40)));
-                // Unusual water level: very extensive water with murk. A single
-                // photo cannot prove the normal baseline, so this is reported
-                // as flooding with that caveat, never as a measured level.
-                if (water > 0.35 && murk > 0.15 && debris > 3.5
-                    && (f.BlueGreenFraction > 0.05 || structure > 0.08 || f.EdgeDensity > 0.01))
-                    return Accept("The photo shows very extensive murky water consistent with flooding or an unusually high water level.", "Flooding",
-                        45 + (int)(30 * Math.Min(1, (water - 0.35) * 2)));
-
-                // 8. Water or structure visible but nothing corroborates an
-                //    obstruction, damage, or flood (e.g. a clean canal): do NOT
-                //    claim a blockage.
-                if (water > 0.04 || murk > 0.10 || structure > 0.10)
-                    return Uncertain("The photo shows a waterway but does not provide enough evidence to confirm an obstruction, damage, or flood condition. Please upload a photo that clearly shows the problem.");
-
-                return Uncertain("The photo could not be reliably assessed. Please upload a clearer photo.");
+                return Uncertain(error ?? "The photo could not be analyzed. Please upload a clearer photo.");
             }
+
+            var f = features;
+
+            // 1. Quality gate: never guess on unreadable input.
+            if (f.DarkFraction > DarkFractionLimit || f.MeanLuminance < MeanLuminanceFloor)
+                return Uncertain("The photo is too dark to assess. Please upload a brighter, clearer photo.");
+            if (f.BlurVariance < BlurVarianceFloor)
+                return Uncertain("The photo is too blurry to assess. Please upload a sharper photo.");
+
+            var water = f.WaterFraction;
+            var murk = f.MurkFraction;
+            var debris = f.DebrisTexture;
+            var structure = f.StructureFraction;
+
+            // 2. Synthetic graphics (screenshots, memes, documents, logos):
+            //    flat fills plus crisp text-like edges, without the broad
+            //    concrete-gray masses of real outdoor scenes.
+            if (f.FlatFraction > GraphicsFlatFloor && debris < GraphicsTextureCeiling
+                && f.EdgeDensity > GraphicsEdgeFloor && water < 0.30 && structure < 0.30)
+                return Reject("The image looks like a screenshot, meme, document, or graphic rather than a photo of a canal, drainage, or flood condition.");
+
+            // 3. Smooth images with no water evidence (portraits, illustrations,
+            //    plain objects): not canal evidence. A person IN a canal/flood
+            //    photo does not trigger this because that photo has water.
+            if (f.FlatFraction > 0.50 && debris < 4.0 && f.EdgeDensity < 0.008 && water < 0.25)
+                return Reject("This image does not appear to show a canal obstruction, drainage issue, flooding, or another condition monitored by COMS. Please upload a relevant image.");
+
+            // 4. Vivid uniform blue with no murk/texture: pools, aquariums,
+            //    clear skies — water without flood evidence.
+            if (f.VividBlueFraction > PoolBlueFloor && debris < PoolTextureCeiling && murk < 0.08)
+                return Reject("The image shows clear blue water without visible flood, debris, or drainage conditions.");
+
+            // 5. Open water without corroboration (sea, lake, calm river):
+            //    no murk, no texture, no structure — nothing to assess.
+            if (water > 0.25 && debris < 5.0 && murk < 0.08 && f.EdgeDensity < 0.01 && structure < 0.10)
+                return Reject("The image shows open water without visible flood, debris, or drainage conditions.");
+
+            // 6. No COMS evidence at all (food, animals, isolated objects).
+            if (water < 0.04 && murk < 0.10 && debris < 7.0 && structure < 0.10 && f.EdgeDensity < 0.03)
+                return Reject("This image does not appear to show a canal obstruction, drainage issue, flooding, or another condition monitored by COMS. Please upload a relevant image.");
+
+            // 7. Strong corroborated combos -> Relevant + suggested category.
+            // Blocked canal: water + structure + heavy clutter.
+            if (water > 0.05 && structure > 0.12 && debris > 8.0)
+                return Accept("The photo shows water in a built structure with heavy accumulated material consistent with a blocked canal or drain.", "Blocked Canal",
+                    45 + (int)(30 * Math.Min(1, (debris - 8.0) / 8.0)));
+            // Flooding: extensive murky water with ripple/texture witness plus
+            // a second witness (blue-green water, structures, dense edges,
+            // or a vast expanse) so bare dirt and smooth darkened photos
+            // do not qualify.
+            if (murk > 0.32 && water > 0.10 && debris > 3.5
+                && (f.BlueGreenFraction > 0.05 || structure > 0.08 || f.EdgeDensity > 0.01 || water > 0.60))
+                return Accept("The photo shows extensive murky floodwater consistent with flooding.", "Flooding",
+                    45 + (int)(30 * Math.Min(1, (murk - 0.32) * 3)));
+            // Garbage/debris: water + heavy clutter.
+            if (water > 0.06 && debris > 9.0)
+                return Accept("The photo shows waste-like clutter in or near water consistent with garbage or debris.", "Garbage / Debris",
+                    45 + (int)(30 * Math.Min(1, (debris - 9.0) / 8.0)));
+            // Damaged canal: concrete structure + dense cracking edges + water.
+            if (structure > 0.15 && f.EdgeDensity > 0.008 && water > 0.04)
+                return Accept("The photo shows a concrete structure with dense cracking and water consistent with a damaged canal.", "Damaged Canal",
+                    45 + (int)(30 * Math.Min(1, (f.EdgeDensity - 0.008) * 40)));
+            // Unusual water level: very extensive water with murk. A single
+            // photo cannot prove the normal baseline, so this is reported
+            // as flooding with that caveat, never as a measured level.
+            if (water > 0.35 && murk > 0.15 && debris > 3.5
+                && (f.BlueGreenFraction > 0.05 || structure > 0.08 || f.EdgeDensity > 0.01))
+                return Accept("The photo shows very extensive murky water consistent with flooding or an unusually high water level.", "Flooding",
+                    45 + (int)(30 * Math.Min(1, (water - 0.35) * 2)));
+
+            // 8. Water or structure visible but nothing corroborates an
+            //    obstruction, damage, or flood (e.g. a clean canal): do NOT
+            //    claim a blockage.
+            if (water > 0.04 || murk > 0.10 || structure > 0.10)
+                return Uncertain("The photo shows a waterway but does not provide enough evidence to confirm an obstruction, damage, or flood condition. Please upload a photo that clearly shows the problem.");
+
+            return Uncertain("The photo could not be reliably assessed. Please upload a clearer photo.");
         }
 
         private static ImageRelevanceResult Accept(string reason, string category, int confidence) =>

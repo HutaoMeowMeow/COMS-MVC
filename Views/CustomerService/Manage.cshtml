@@ -104,6 +104,17 @@
                     <dd class="col-sm-7">@(Model.Ticket.AssignedToUser?.FullName ?? "Unassigned")</dd>
                     <dt class="col-sm-5">Created</dt>
                     <dd class="col-sm-7"><time data-utc="@COMS_MVC.Helpers.PhTime.AsUtc(Model.Ticket.CreatedAt).ToString("o")" title="@COMS_MVC.Helpers.PhTime.ToPhString(Model.Ticket.CreatedAt) (Philippine time)">@COMS_MVC.Helpers.PhTime.ToPhString(Model.Ticket.CreatedAt)</time></dd>
+                    <dt class="col-sm-5">Image</dt>
+                    <dd class="col-sm-7">
+                        @if (!string.IsNullOrEmpty(Model.Ticket.ImagePath))
+                        {
+                            <img src="/Images/@Model.Ticket.SupportTicketId" alt="Ticket image" class="img-thumbnail" style="max-width: 200px; max-height: 150px;" />
+                        }
+                        else
+                        {
+                            <span class="text-muted"><em>No image attached</em></span>
+                        }
+                    </dd>
                     <dt class="col-sm-5">Updated</dt>
                     <dd class="col-sm-7">@Model.Ticket.UpdatedAt.ToString("g")</dd>
                     @if (Model.Ticket.ClosedAt.HasValue)

@@ -97,7 +97,7 @@
                                 <i class="bi bi-clock text-muted"></i>
                                 <small class="text-muted">Code expires in <strong>10 minutes</strong> and can only be used once.</small>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="verifyBtn">
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="verifyBtn" data-loading>
                                 <span class="btn-label"><i class="bi bi-shield-check me-2"></i>Verify account</span>
                                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                             </button>
@@ -106,7 +106,7 @@
                         <form asp-action="ResendOtp" method="post" class="mt-2" id="resendForm">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="email" value="@Model.Email" />
-                            <button type="submit" class="btn btn-outline-secondary w-100 py-2" id="resendBtn">
+                            <button type="submit" class="btn btn-outline-secondary w-100 py-2" id="resendBtn" data-loading>
                                 <span class="btn-label"><i class="bi bi-arrow-repeat me-2"></i>Resend code</span>
                                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                             </button>
@@ -142,21 +142,9 @@
                     this.value = this.value.replace(/\D/g, '').slice(0, 6);
                 });
             }
-            function wireLoading(formId, btnId) {
-                var form = document.getElementById(formId);
-                var btn = document.getElementById(btnId);
-                if (!form || !btn) return;
-                form.addEventListener('submit', function () {
-                    if (!form.checkValidity()) return;
-                    btn.disabled = true;
-                    var label = btn.querySelector('.btn-label');
-                    var spin = btn.querySelector('.spinner-border');
-                    if (label) label.classList.add('opacity-50');
-                    if (spin) spin.classList.remove('d-none');
-                });
-            }
-            wireLoading('otpForm', 'verifyBtn');
-            wireLoading('resendForm', 'resendBtn');
+            // Loading state is handled globally by ~/js/loading-state.js via
+            // each button's data-loading attribute (the button is restored
+            // even when the submit is cancelled by validation).
         });
     </script>
 }

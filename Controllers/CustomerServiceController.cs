@@ -16,6 +16,7 @@ namespace COMS_MVC.Controllers
         private readonly ILookupService _lookups;
         private readonly IMemoryCache _cache;
         private readonly ITicketModerationService _moderation;
+        private readonly ILogger<CustomerServiceController> _logger;
 
         public CustomerServiceController(ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
@@ -23,7 +24,8 @@ namespace COMS_MVC.Controllers
             IHubContext<Hubs.SupportHub> supportHub,
             ILookupService lookups,
             IMemoryCache cache,
-            ITicketModerationService moderation)
+            ITicketModerationService moderation,
+            ILogger<CustomerServiceController> logger)
         {
             _context = context;
             _userManager = userManager;
@@ -32,6 +34,7 @@ namespace COMS_MVC.Controllers
             _lookups = lookups;
             _cache = cache;
             _moderation = moderation;
+            _logger = logger;
         }
 
         private bool IsStaff() => User.IsInRole("CustomerService") || User.IsInRole("Admin");
@@ -191,11 +194,13 @@ namespace COMS_MVC.Controllers
                 return View(model);
             }
 
-             var now = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
             // For "Other" category, OtherConcern serves as the ticket description.
             var ticketDescription = (model.Category == "Other")
                 ? (model.OtherConcern ?? string.Empty)
                 : (model.Description ?? string.Empty);
+
+            // Save the ticket exactly once.
             var ticket = new SupportTicket
             {
                 UserId = userId, // Server-side identity only. Never from input.
@@ -207,8 +212,23 @@ namespace COMS_MVC.Controllers
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            _context.SupportTickets.Add(ticket);
-            await _context.SaveChangesAsync();
+
+            try
+            {
+                _context.SupportTickets.Add(ticket);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Support ticket saved: ticketId={TicketId} user={UserId}", ticket.SupportTicketId, userId);
+            }
+            catch (Exception ex)
+            {
+                // The ticket save failed: roll the entity back out of the
+                // context and show a friendly error. The application keeps running.
+                _logger.LogError(ex, "Failed to save support ticket for user {UserId}.", userId);
+                _context.Entry(ticket).State = EntityState.Detached;
+
+                ModelState.AddModelError(string.Empty, "Could not submit your request. Please check your input and try again.");
+                return View(model);
+            }
 
             try
             {
@@ -223,14 +243,10 @@ namespace COMS_MVC.Controllers
                 // Best-effort notification.
             }
 
-            if (moderation.IsUncertain)
-            {
-                TempData["AlertMessage"] = "Your request has been submitted but is pending staff review. Our team will respond shortly.";
-            }
-            else
-            {
-                TempData["SuccessMessage"] = "Your request has been submitted. Our team will reply here shortly.";
-            };
+            TempData[moderation.IsUncertain ? "AlertMessage" : "SuccessMessage"] = moderation.IsUncertain
+                ? "Your request has been submitted but is pending staff review. Our team will respond shortly."
+                : "Your request has been submitted. Our team will reply here shortly.";
+
             return RedirectToAction(nameof(Ticket), new { id = ticket.SupportTicketId });
         }
 

@@ -146,7 +146,7 @@
                                 <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
                             </div>
 
-                            <button type="submit" class="btn btn-primary w-100 register-submit" id="registerBtn">
+                            <button type="submit" class="btn btn-primary w-100 register-submit" id="registerBtn" data-loading>
                                 <span class="btn-label"><i class="bi bi-person-plus me-2"></i>Register &amp; send code</span>
                                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                             </button>
@@ -181,16 +181,9 @@
                     btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
                 });
             });
-            var form = document.getElementById('registerForm');
-            var submit = document.getElementById('registerBtn');
-            if (form && submit) {
-                form.addEventListener('submit', function () {
-                    if (!form.checkValidity()) return;
-                    submit.disabled = true;
-                    submit.querySelector('.btn-label').classList.add('opacity-50');
-                    submit.querySelector('.spinner-border').classList.remove('d-none');
-                });
-            }
+            // Loading state is handled globally by ~/js/loading-state.js via
+            // the button's data-loading attribute (restores the button even
+            // when client-side validation cancels the submit).
         });
     </script>
 }

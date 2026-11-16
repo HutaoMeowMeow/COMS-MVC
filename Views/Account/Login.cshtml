@@ -190,7 +190,7 @@
                                     </div>
                                     <a asp-action="ForgotPassword" class="small text-decoration-none">Forgot password?</a>
                                 </div>
-                                <button type="submit" class="btn btn-primary auth-submit w-100" id="loginBtn">
+                                <button type="submit" class="btn btn-primary auth-submit w-100" id="loginBtn" data-loading>
                                     <span class="btn-label"><i class="bi bi-box-arrow-in-right me-2"></i>Sign In</span>
                                     <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                 </button>
@@ -230,15 +230,16 @@
                 });
             }
             var form = document.getElementById('loginForm');
-            var submit = document.getElementById('loginBtn');
-            if (form && submit) {
-                form.addEventListener('submit', function () {
-                    if (!form.checkValidity()) return;
-                    submit.disabled = true;
-                    var label = submit.querySelector('.btn-label');
-                    var spin = submit.querySelector('.spinner-border');
-                    if (label) label.classList.add('opacity-50');
-                    if (spin) spin.classList.remove('d-none');
+            if (form) {
+                // A duplicate-submit guard on top of the shared data-loading
+                // state: it stops a second POST while the first navigation is
+                // still pending. ~/js/loading-state.js always restores the
+                // button, so a blocked or failed submit can never stick.
+                form.addEventListener('submit', function (e) {
+                    var submit = document.getElementById('loginBtn');
+                    if (submit && submit.disabled) {
+                        e.preventDefault();
+                    }
                 });
             }
         });

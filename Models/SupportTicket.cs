@@ -52,5 +52,23 @@ namespace COMS_MVC.Models
         public ApplicationUser? AssignedToUser { get; set; }
 
         public ICollection<SupportMessage> Messages { get; set; } = new List<SupportMessage>();
+
+        /// <summary>
+        /// Optional image attachment for visual evidence.
+        /// The uploaded image is validated, relevance-checked, and stored
+        /// outside the public web root. Accessed only through the
+        /// authorized Images controller endpoint.
+        /// </summary>
+        public string? ImagePath { get; set; }
+
+        /// <summary>
+        /// Original file extension (validated and stored safely).
+        /// </summary>
+        public string? ImageExtension { get; set; }
+
+        /// <summary>
+        /// Size in bytes of the uploaded image (validated at upload time).
+        /// </summary>
+        public long? ImageSizeBytes { get; set; }
     }
 }

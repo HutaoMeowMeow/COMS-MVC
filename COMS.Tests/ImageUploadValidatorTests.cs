@@ -125,6 +125,98 @@ public sealed class ImageUploadValidatorTests
     }
 
     [Fact]
+    public void Content_DecompressionBomb_IsRejectedFromHeaderWithoutFullDecode()
+    {
+        // A tiny PNG whose IHDR declares 20000x20000 (~1.6GB RGBA). Decoding the
+        // full surface before checking dimensions is the native/OOM crash vector:
+        // ValidateContent must reject it from the header alone.
+        var bomb = MakeBombPng(20000, 20000);
+        Assert.True(bomb.Length < 1024, "bomb should be tiny");
+
+        var error = ImageUploadValidator.ValidateContent(bomb);
+
+        Assert.Equal(ImageUploadValidator.ErrorTooLarge, error);
+    }
+
+    [Fact]
+    public void TryGetDeclaredSize_ReadsHeaderWithoutAllocatingPixels()
+    {
+        var bomb = MakeBombPng(20000, 20000);
+
+        Assert.True(ImageUploadValidator.TryGetDeclaredSize(bomb, out var w, out var h));
+        Assert.Equal(20000, w);
+        Assert.Equal(20000, h);
+    }
+
+    [Fact]
+    public void TryGetDeclaredSize_ReturnsFalseForNonImage()
+    {
+        Assert.False(ImageUploadValidator.TryGetDeclaredSize("not an image"u8.ToArray(), out _, out _));
+        Assert.False(ImageUploadValidator.TryGetDeclaredSize(Array.Empty<byte>(), out _, out _));
+    }
+
+    private static byte[] MakeBombPng(int width, int height)
+    {
+        using var ms = new MemoryStream();
+        ms.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        var ihdr = new byte[13];
+        WriteInt(ihdr, 0, width);
+        WriteInt(ihdr, 4, height);
+        ihdr[8] = 8;  // bit depth
+        ihdr[9] = 6;  // RGBA
+        WriteChunk(ms, "IHDR", ihdr);
+        var raw = new byte[] { 0, 0, 0, 0, 0 };
+        using (var z = new MemoryStream())
+        {
+            using (var zlib = new System.IO.Compression.ZLibStream(z, System.IO.Compression.CompressionLevel.Fastest, true))
+                zlib.Write(raw, 0, raw.Length);
+            WriteChunk(ms, "IDAT", z.ToArray());
+        }
+        WriteChunk(ms, "IEND", Array.Empty<byte>());
+        return ms.ToArray();
+    }
+
+    private static void WriteInt(byte[] b, int off, int v)
+    {
+        b[off] = (byte)(v >> 24); b[off + 1] = (byte)(v >> 16); b[off + 2] = (byte)(v >> 8); b[off + 3] = (byte)v;
+    }
+
+    private static void WriteChunk(Stream s, string type, byte[] data)
+    {
+        var len = new byte[4];
+        len[0] = (byte)(data.Length >> 24); len[1] = (byte)(data.Length >> 16); len[2] = (byte)(data.Length >> 8); len[3] = (byte)data.Length;
+        s.Write(len);
+        var t = System.Text.Encoding.ASCII.GetBytes(type);
+        s.Write(t);
+        s.Write(data);
+        var crc = Crc32(t, data);
+        var c = new byte[4];
+        c[0] = (byte)(crc >> 24); c[1] = (byte)(crc >> 16); c[2] = (byte)(crc >> 8); c[3] = (byte)crc;
+        s.Write(c);
+    }
+
+    private static uint Crc32(byte[] type, byte[] data)
+    {
+        uint crc = 0xFFFFFFFF;
+        foreach (var b in type) crc = (crc >> 8) ^ CrcTable[(crc ^ b) & 0xFF];
+        foreach (var b in data) crc = (crc >> 8) ^ CrcTable[(crc ^ b) & 0xFF];
+        return crc ^ 0xFFFFFFFF;
+    }
+
+    private static readonly uint[] CrcTable = BuildCrcTable();
+    private static uint[] BuildCrcTable()
+    {
+        var t = new uint[256];
+        for (uint n = 0; n < 256; n++)
+        {
+            uint c = n;
+            for (var k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320 ^ (c >> 1) : c >> 1;
+            t[n] = c;
+        }
+        return t;
+    }
+
+    [Fact]
     public async Task ValidateAsync_EndToEnd_AcceptsRealPngUpload()
     {
         using var bitmap = new SKBitmap(64, 64);

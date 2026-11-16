@@ -726,6 +726,11 @@ sidebar {
 .table-hover tbody tr { transition: background-color .12s ease; }
 
 /* ---------- Alerts: slide-in, auto-dismiss handled in site.js ---------- */
+/* jQuery-validate summary: never show an empty summary container. The server
+   renders the summary only when ModelState has errors; this rule guards the
+   client-side toggles (validation-summary-valid is re-applied on reset). */
+.validation-summary-valid { display: none !important; }
+
 .content-area > .alert {
   animation: alertSlide .25s ease both;
   border-left: 4px solid transparent;

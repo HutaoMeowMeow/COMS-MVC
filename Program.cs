@@ -13,6 +13,33 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ---- Diagnostic crash capture (temporary instrumentation) ----
+// Records the exact exception + stack trace for an unhandled exception on a
+// background thread/finalizer, or an unobserved Task, BEFORE the runtime tears
+// the process down. This turns the next silent termination (VS exit code
+// 0xFFFFFFFF / ERR_CONNECTION_REFUSED) into a precise exception + stack so the
+// real cause can be identified instead of guessed. Behavior-neutral: it only
+// observes/logs and never alters request handling.
+static void WriteCrashLog(string kind, Exception? ex)
+{
+    try
+    {
+        var line = $"[{DateTime.UtcNow:O}] {kind}{Environment.NewLine}{ex}{Environment.NewLine}{new string('-', 80)}{Environment.NewLine}";
+        try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "crash-unhandled.log"), line); }
+        catch { File.AppendAllText(Path.Combine(Path.GetTempPath(), "coms-crash-unhandled.log"), line); }
+        Console.Error.WriteLine($"[CRASH-CAPTURE] {kind}: {ex?.GetType().FullName}: {ex?.Message}");
+    }
+    catch { /* a crash handler must never throw */ }
+}
+
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+    WriteCrashLog("AppDomain.UnhandledException", e.ExceptionObject as Exception);
+TaskScheduler.UnobservedTaskException += (_, e) =>
+{
+    WriteCrashLog("TaskScheduler.UnobservedTaskException", e.Exception);
+    e.SetObserved();
+};
+
 // Railway (and similar hosts) inject PORT — listen on 0.0.0.0:$PORT.
 // Locally PORT is unset, so launchSettings.json (http://localhost:5070) applies.
 var port = Environment.GetEnvironmentVariable("PORT");

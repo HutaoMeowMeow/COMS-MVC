@@ -22,7 +22,13 @@
             <div class="card-body p-4">
                 <form asp-action="Create" method="post" id="ticketCreateForm">
                     @Html.AntiForgeryToken()
-                    @Html.ValidationSummary(true, "", new { @class = "alert alert-danger small mb-3 py-2" })
+                    @* Render the summary only when there are real errors: an empty
+                       ValidationSummary styled as alert-danger displays as a bare red
+                       bar on every page load (no CSS hides an empty summary). *@
+                    @if (ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
+                    {
+                        @Html.ValidationSummary(false, "", new { @class = "alert alert-danger small mb-3 py-2" })
+                    }
                     <div class="mb-3">
                         <label asp-for="Subject" class="form-label"></label>
                         <input asp-for="Subject" class="form-control" placeholder="e.g. I cannot log into my account" maxlength="150" data-char-counter="150" />
@@ -82,56 +88,21 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        // "Other" category: OtherConcern replaces Description.
         (function () {
             'use strict';
-            var category = document.getElementById('categorySelect');
-            var otherGroup = document.getElementById('otherConcernGroup');
-            var descGroup = document.getElementById('descriptionGroup');
-            var otherTextarea = otherGroup ? otherGroup.querySelector('textarea') : null;
-            var descTextarea = descGroup ? descGroup.querySelector('textarea') : null;
+            var categorySelect = document.getElementById('categorySelect');
+            var otherConcernGroup = document.getElementById('otherConcernGroup');
+            var descriptionGroup = document.getElementById('descriptionGroup');
+            if (!categorySelect || !otherConcernGroup || !descriptionGroup) return;
 
-            if (category && otherGroup && descGroup) {
-                function toggle() {
-                    var isOther = category.value === 'Other';
-                    // Toggle visibility
-                    otherGroup.style.display = isOther ? 'block' : 'none';
-                    descGroup.style.display = isOther ? 'none' : 'block';
-                    // Toggle required attributes
-                    if (otherTextarea) {
-                        if (isOther) {
-                            otherTextarea.setAttribute('required', 'required');
-                            otherTextarea.setAttribute('aria-required', 'true');
-                        } else {
-                            otherTextarea.removeAttribute('required');
-                            otherTextarea.setAttribute('aria-required', 'false');
-                        }
-                    }
-                    if (descTextarea) {
-                        if (isOther) {
-                            descTextarea.removeAttribute('required');
-                            descTextarea.setAttribute('aria-required', 'false');
-                        } else {
-                            descTextarea.setAttribute('required', 'required');
-                            descTextarea.setAttribute('aria-required', 'true');
-                        }
-                    }
-                    // Clear validation messages on the hidden field
-                    if (isOther && descTextarea) {
-                        var descMsg = descTextarea.closest('.mb-4').querySelector('.text-danger');
-                        if (descMsg) descMsg.textContent = '';
-                    } else if (!isOther && otherTextarea) {
-                        var otherMsg = otherTextarea.closest('.mb-4').querySelector('.text-danger');
-                        if (otherMsg) otherMsg.textContent = '';
-                    }
-                }
-                // Initialize Description as required by default (no category selected yet)
-                if (descTextarea) {
-                    descTextarea.setAttribute('required', 'required');
-                    descTextarea.setAttribute('aria-required', 'true');
-                }
-                category.addEventListener('change', toggle);
-                toggle();
-            }
+            var syncCategory = function () {
+                var isOther = categorySelect.value === 'Other';
+                otherConcernGroup.style.display = isOther ? '' : 'none';
+                descriptionGroup.style.display = isOther ? 'none' : '';
+            };
+            categorySelect.addEventListener('change', syncCategory);
+            syncCategory();
         })();
     </script>
 }

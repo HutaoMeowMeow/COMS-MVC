@@ -764,6 +764,15 @@ namespace COMS_MVC.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("ImageExtension")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImagePath")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("ImageSizeBytes")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasMaxLength(50)

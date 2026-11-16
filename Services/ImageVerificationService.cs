@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SkiaSharp;
 
 namespace COMS_MVC.Services
@@ -31,9 +31,9 @@ namespace COMS_MVC.Services
     }
 
     /// <summary>
-    /// Offline heuristic analyzer. Scores independent, explainable signals —
+    /// Offline heuristic analyzer. Scores independent, explainable signals â€”
     /// generator/editor metadata, format/extension mismatch, stripped metadata,
-    /// dimension anomalies — into an advisory result. It never claims certainty:
+    /// dimension anomalies â€” into an advisory result. It never claims certainty:
     /// top confidence is capped, and anything undecodable yields
     /// UnableToDetermine/Failed instead of a verdict.
     /// </summary>
@@ -96,8 +96,9 @@ namespace COMS_MVC.Services
             try
             {
                 // Same bounded check as the upload gate: a declared-oversized
-                // bomb is rejected before any bitmap allocation.
-                if (ImageUploadValidator.ExceedsPixelBudget(bytes, out _, out _))
+                // bomb is rejected from its header before any bitmap allocation.
+                if (ImageUploadValidator.TryGetDeclaredSize(bytes, out var declaredWidth, out var declaredHeight)
+                    && ImageUploadValidator.ExceedsPixelBudget(declaredWidth, declaredHeight))
                 {
                     return new ImageVerificationResult
                     {
@@ -106,8 +107,20 @@ namespace COMS_MVC.Services
                     };
                 }
 
-                using var bitmap = SKBitmap.Decode(bytes);
-                if (bitmap == null)
+                format = DetectFormat(bytes);
+                software = ExifReader.GetSoftware(bytes);
+
+                // Native decode, dimension read, and dispose must all run inside
+                // the process-wide gate: disposing a native bitmap outside the
+                // gate can race with other image operations and crash the process
+                // with an uncatchable AccessViolationException (exit 0xffffffff).
+                var dims = SkiaSharpGate.Run(() =>
+                {
+                    using var bitmap = SKBitmap.Decode(bytes);
+                    if (bitmap == null) return (ok: false, w: 0, h: 0);
+                    return (ok: true, w: bitmap.Width, h: bitmap.Height);
+                });
+                if (!dims.ok)
                 {
                     return new ImageVerificationResult
                     {
@@ -115,10 +128,8 @@ namespace COMS_MVC.Services
                         Reason = "Image data could not be decoded for analysis."
                     };
                 }
-                format = DetectFormat(bytes);
-                width = bitmap.Width;
-                height = bitmap.Height;
-                software = ExifReader.GetSoftware(bytes);
+                width = dims.w;
+                height = dims.h;
             }
             catch
             {
@@ -133,7 +144,7 @@ namespace COMS_MVC.Services
             var score = 0;
             var notes = new List<string>();
 
-            // GIFs carry almost no metadata — be honest about limits.
+            // GIFs carry almost no metadata â€” be honest about limits.
             if (format.Equals("GIF", StringComparison.OrdinalIgnoreCase))
             {
                 return new ImageVerificationResult
@@ -179,7 +190,7 @@ namespace COMS_MVC.Services
             }
             else if (format.Equals("JPEG", StringComparison.OrdinalIgnoreCase))
             {
-                // Stripped metadata is common (screenshots, downloads) — weak signal only.
+                // Stripped metadata is common (screenshots, downloads) â€” weak signal only.
                 score += 10;
                 notes.Add("No camera metadata present (common for screenshots or downloads).");
             }
@@ -331,3 +342,4 @@ namespace COMS_MVC.Services
         }
     }
 }
+

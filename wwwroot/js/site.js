@@ -8,7 +8,6 @@
     autoDismissAlerts();
     initScrollReveal();
     initMobileSidebar();
-    initLoadingButtons();
     initCharCounters();
 });
 
@@ -50,25 +49,10 @@ function initCharCounters() {
     });
 }
 
-// Subtle loading state: prevents accidental double submission on
-// forms/buttons marked with [data-loading]. No new framework.
-function initLoadingButtons() {
-    document.querySelectorAll('[data-loading]').forEach(function (btn) {
-        var form = btn.closest('form');
-        if (form) {
-            form.addEventListener('submit', function () {
-                if (btn.disabled) return;
-                btn.disabled = true;
-                btn.dataset.originalHtml = btn.innerHTML;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Sending…';
-            });
-        } else {
-            btn.addEventListener('click', function () {
-                btn.disabled = true;
-            });
-        }
-    });
-}
+// Subtle loading state for forms/buttons is owned by ~/js/loading-state.js,
+// which is loaded before this file and covers every [data-loading] element.
+// (It used to live here and had no path that re-enabled a button when the
+// submit was cancelled by a later handler — that left buttons stuck.)
 
 // Mobile sidebar: the hamburger toggles the existing .sidebar.show mechanism.
 // Closes on nav tap, backdrop tap, Escape, and resize to desktop.

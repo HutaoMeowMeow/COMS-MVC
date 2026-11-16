@@ -14,7 +14,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="confirmCancel">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmConfirm" data-loading>
+                <button type="button" class="btn btn-danger" id="confirmConfirm" data-loading="always">
                     <span id="confirmConfirmLabel">Confirm</span>
                 </button>
             </div>
@@ -45,6 +45,8 @@
         msgEl.textContent = message;
         confirmBtn.classList.toggle('btn-danger', destructive);
         confirmBtn.classList.toggle('btn-outline-secondary', !destructive);
+        // Always return the button to its resting state before showing: a
+        // previous confirmation may have disabled it.
         confirmBtn.disabled = false;
         pendingSubmit = false;
         confirmLabel.textContent = 'Confirm';
@@ -70,23 +72,27 @@
         confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span><span id="confirmConfirmLabel">Processing…</span>';
 
         var form = triggerEl && triggerEl.closest('form');
+        var actionUrl = triggerEl && triggerEl.getAttribute('data-confirm-action');
         if (form) {
             form.submit();
+        } else if (actionUrl) {
+            var tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '__RequestVerificationToken';
+            var tokenElem = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (tokenElem) tokenInput.value = tokenElem.value;
+            var f = document.createElement('form');
+            f.method = 'POST';
+            f.action = actionUrl;
+            f.appendChild(tokenInput);
+            document.body.appendChild(f);
+            f.submit();
         } else {
-            var url = triggerEl.getAttribute('data-confirm-action');
-            if (url) {
-                var tokenInput = document.createElement('input');
-                tokenInput.type = 'hidden';
-                tokenInput.name = '__RequestVerificationToken';
-                var tokenElem = document.querySelector('input[name="__RequestVerificationToken"]');
-                if (tokenElem) tokenInput.value = tokenElem.value;
-                var f = document.createElement('form');
-                f.method = 'POST';
-                f.action = url;
-                f.appendChild(tokenInput);
-                document.body.appendChild(f);
-                f.submit();
-            }
+            // Nothing to submit: put the button back instead of leaving it
+            // spinning in a closing modal.
+            confirmBtn.disabled = false;
+            pendingSubmit = false;
+            confirmBtn.innerHTML = '<span id="confirmConfirmLabel">Confirm</span>';
         }
         modal.hide();
     });
