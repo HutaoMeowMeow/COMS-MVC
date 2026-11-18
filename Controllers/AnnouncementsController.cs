@@ -1,3 +1,4 @@
+using COMS_MVC.Helpers;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace COMS_MVC.Controllers
@@ -103,12 +104,7 @@ namespace COMS_MVC.Controllers
                     return Challenge();
                 }
                 var userRoles = await _userManager.GetRolesAsync(currentUser);
-                var allowedAudiences = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "All" };
-                foreach (var r in userRoles)
-                {
-                    allowedAudiences.Add(r);
-                    allowedAudiences.Add(GetAudienceGroup(r));
-                }
+                var allowedAudiences = NotificationLinks.AllowedAnnouncementAudiences(userRoles);
 
                 if (!allowedAudiences.Contains(announcement.TargetAudience))
                 {
@@ -513,7 +509,9 @@ namespace COMS_MVC.Controllers
                     announcement.Title,
                     "Announcement",
                     null,
-                    null);
+                    null,
+                    NotificationLinks.Announcement,
+                    announcement.AnnouncementId);
             }
         }
     }

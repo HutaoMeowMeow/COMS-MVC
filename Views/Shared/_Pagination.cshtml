@@ -1,0 +1,48 @@
+@model PaginationViewModel
+@using Microsoft.AspNetCore.Routing
+@{
+    var start = Math.Max(1, Model.Page - 2);
+    var end = Math.Min(Model.TotalPages, Model.Page + 2);
+
+    // Build the URLs server-side: filter values from the page are preserved
+    // and "page" is always replaced. Using Url.Action keeps the ambient
+    // controller when no controller is specified.
+    string UrlFor(int pageNumber)
+    {
+        var values = new RouteValueDictionary();
+        foreach (var pair in Model.RouteValues)
+        {
+            if (!string.IsNullOrEmpty(pair.Value))
+            {
+                values[pair.Key] = pair.Value;
+            }
+        }
+        values["page"] = pageNumber;
+        return string.IsNullOrEmpty(Model.Controller)
+            ? Url.Action(Model.Action, values) ?? "#"
+            : Url.Action(Model.Action, Model.Controller, values) ?? "#";
+    }
+}
+
+@if (Model.TotalPages > 1)
+{
+    <div class="pagination-bar d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small class="text-muted">Page @(Model.Page) of @Model.TotalPages · @Model.TotalCount @Model.Label</small>
+        <nav aria-label="Pagination">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@UrlFor(Model.Page - 1)" aria-label="Previous page">Previous</a>
+                </li>
+                @for (var p = start; p <= end; p++)
+                {
+                    <li class="page-item @(p == Model.Page ? "active" : "")">
+                        <a class="page-link" href="@UrlFor(p)">@p</a>
+                    </li>
+                }
+                <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@UrlFor(Model.Page + 1)" aria-label="Next page">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}

@@ -15,27 +15,65 @@
     </a>
 </div>
 
+@if (ViewBag.Draft is ReportDraft draft)
+{
+    <div class="card draft-resume-card mb-4">
+        <div class="card-body d-flex align-items-start gap-3 flex-wrap">
+            @if (!string.IsNullOrEmpty(draft.PhotoPath))
+            {
+                <img src="@(Url.Action("DraftPhoto", "Reports", new { v = draft.UpdatedAt.Ticks }))" alt="Saved draft photo" class="draft-photo-thumb" />
+            }
+            else
+            {
+                <span class="empty-icon small mb-0"><i class="bi bi-file-earmark-text"></i></span>
+            }
+            <div class="flex-grow-1 min-w-0">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge bg-warning-subtle text-warning">Draft</span>
+                    <small class="report-meta">Last saved @PhTime.ToPhString(draft.UpdatedAt) (Philippine time)</small>
+                </div>
+                <h6 class="mt-2 mb-1 text-break">@(string.IsNullOrWhiteSpace(draft.Title) ? "Untitled report draft" : draft.Title)</h6>
+                <p class="report-meta mb-0 text-break">
+                    <i class="bi bi-tag me-1"></i>@draft.ReportType
+                    @if (!string.IsNullOrWhiteSpace(draft.Location))
+                    {
+                        <span class="ms-2"><i class="bi bi-geo-alt me-1"></i>@draft.Location</span>
+                    }
+                </p>
+                @if (!string.IsNullOrWhiteSpace(draft.Description))
+                {
+                    <p class="small text-muted mt-2 mb-0 report-desc-clamp text-break">@draft.Description</p>
+                }
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0 align-self-center">
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="bi bi-pencil-square me-1"></i>Continue editing
+                </a>
+                <form asp-action="DeleteDraft" method="post" data-confirm="true"
+                      data-confirm-title="Delete this draft?"
+                      data-confirm-message="Your saved draft and its photo will be removed. Submitted reports are not affected."
+                      data-confirm-destructive="true">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@Url.Action("MyReports")" />
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
 @if (Model.Any())
 {
     <div class="row g-3 g-lg-4">
         @foreach (var report in Model.Select((r, i) => new { r, i }))
         {
-            var rc = report.r.Status switch
-            {
-                "Resolved" => "st-resolved",
-                "In Progress" => "st-in-progress",
-                "Pending" => "st-pending",
-                "Under Review" => "st-under-review",
-                "Verified" => "st-verified",
-                "Assigned" => "st-assigned",
-                "Rejected" => "st-rejected",
-                _ => "st-pending"
-            };
             <div class="col-12 col-sm-6 col-xl-4 d-flex">
                 <div class="report-card w-100" style="--i:@(report.i % 6)">
                     <div class="report-card-body min-w-0">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                            <span class="status-badge @rc">@report.r.Status</span>
+                            @Html.StatusBadge(report.r.Status)
                             <small class="report-meta flex-shrink-0"><i class="bi bi-calendar3 me-1"></i><time data-utc="@PhTime.AsUtc(report.r.CreatedAt).ToString("o")" title="@PhTime.ToPhString(report.r.CreatedAt) (Philippine time)">@PhTime.ToRelative(report.r.CreatedAt)</time></small>
                         </div>
                         <h6 class="mb-1 text-break">@report.r.Title</h6>
@@ -74,3 +112,5 @@ else
         </div>
     </div>
 }
+
+

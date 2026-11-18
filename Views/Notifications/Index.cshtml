@@ -1,4 +1,4 @@
-@model IEnumerable<Notification>
+@model NotificationPage
 @using COMS_MVC.Helpers
 @{
     ViewData["Title"] = "Notifications";
@@ -8,31 +8,58 @@
 <div class="page-head">
     <div class="min-w-0">
         <h1 class="h3 mb-0 text-break">
-            <i class="bi bi-bell me-2"></i>Notifications
+            <i class="bi bi-bell me-2 page-icon"></i>Notifications
         </h1>
-        <p class="page-sub">Times shown in Philippine time (UTC+8).</p>
+        <p class="page-sub">
+            @if (Model.UnreadCount > 0)
+            {
+                <text><span class="badge bg-primary-subtle text-primary me-1">@Model.UnreadCount unread</span></text>
+            }
+            @Model.TotalCount total · times shown in Philippine time (UTC+8)
+        </p>
     </div>
-    <form asp-action="MarkAllAsRead" method="post" class="d-inline flex-shrink-0">
-        @Html.AntiForgeryToken()
-        <button type="submit" class="btn btn-outline-primary btn-sm"
-                data-confirm="true" data-confirm-title="Mark All Notifications Read"
-                data-confirm-message="Mark all notifications as read?"
-                data-confirm-destructive="false">
-            <i class="bi bi-check2-all me-1"></i>Mark All Read
-        </button>
-    </form>
+    <div class="d-flex gap-2 flex-wrap flex-shrink-0">
+        <form asp-action="MarkAllAsRead" method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-primary btn-sm"
+                    data-confirm="true" data-confirm-title="Mark All Notifications Read"
+                    data-confirm-message="Mark all of your notifications as read? This does not delete anything."
+                    data-confirm-destructive="false">
+                <i class="bi bi-check2-all me-1"></i>Mark All Read
+            </button>
+        </form>
+        @if (Model.TotalCount > 0)
+        {
+            <form asp-action="DeleteAll" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-danger btn-sm"
+                        data-confirm="true" data-confirm-title="Delete All Notifications"
+                        data-confirm-message="Delete all of your notifications? This action cannot be undone and only affects your own account."
+                        data-confirm-destructive="true">
+                    <i class="bi bi-trash3 me-1"></i>Delete All
+                </button>
+            </form>
+        }
+    </div>
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-body">
+<div class="card table-card">
+    <div class="card-body p-0">
         <div class="list-group list-group-flush">
-            @if (Model.Any())
+            @if (Model.Items.Any())
             {
-                @foreach (var notification in Model)
+                @foreach (var notification in Model.Items)
                 {
-                    <div class="list-group-item border-0 py-3 @(notification.IsRead ? "" : "bg-primary bg-opacity-10")">
-                        <div class="d-flex">
-                            <div class="me-3">
+                    var target = NotificationLinks.GetTarget(notification, User);
+                    // Navigate through the server-side resolver so ownership is
+                    // re-checked, the row is marked read, and missing records
+                    // fall back to the module instead of a raw 404.
+                    var targetUrl = target == null
+                        ? null
+                        : Url.Action("Open", "Notifications", new { id = notification.NotificationId });
+                    <div class="list-group-item border-0 py-3 notification-item @(notification.IsRead ? "" : "is-unread")">
+                        <div class="d-flex align-items-start">
+                            <div class="me-3 flex-shrink-0">
                                 <div class="bg-@(notification.Type == "Alert" ? "danger" :
                                     notification.Type == "Report" || notification.Type == "Report Update" ? "warning" :
                                     notification.Type == "Announcement" ? "info" :
@@ -48,56 +75,93 @@
                                 </div>
                             </div>
                             <div class="flex-grow-1 min-w-0">
-                                <div class="d-flex justify-content-between gap-2">
-                                    <h6 class="mb-1 text-break @(notification.IsRead ? "text-muted" : "fw-bold")">@notification.Title</h6>
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="min-w-0 flex-grow-1">
+                                        @if (targetUrl != null)
+                                        {
+                                            @* Only the title/description area navigates: the
+                                               Mark as read and Delete forms stay outside. *@
+                                            <a class="notification-open" href="@targetUrl">
+                                                <h6 class="notification-title mb-1 text-break @(notification.IsRead ? "text-muted" : "fw-bold")">@notification.Title</h6>
+                                                <p class="text-muted small mb-1 text-break">@notification.Message</p>
+                                                <span class="notification-open-hint">
+                                                    <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>@(target?.LinkLabel)
+                                                </span>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <h6 class="notification-title mb-1 text-break @(notification.IsRead ? "text-muted" : "fw-bold")">@notification.Title</h6>
+                                            <p class="text-muted small mb-1 text-break">@notification.Message</p>
+                                        }
+                                    </div>
                                     <small class="text-muted flex-shrink-0"><time data-utc="@PhTime.AsUtc(notification.CreatedAt).ToString("o")" title="@PhTime.ToPhString(notification.CreatedAt) (Philippine time)">@PhTime.ToRelative(notification.CreatedAt)</time></small>
                                 </div>
-                                <p class="text-muted small mb-0 text-break">@notification.Message</p>
-                                @if (notification.RelatedAlert != null)
-                                {
-                                    <a asp-controller="Alerts" asp-action="Details" asp-route-id="@notification.RelatedAlert.ObstructionAlertId" class="text-decoration-none small">
-                                        View Alert
-                                    </a>
-                                }
-                                @if (notification.RelatedReport != null)
-                                {
-                                    <a asp-controller="Reports" asp-action="Details" asp-route-id="@notification.RelatedReport.CommunityReportId" class="text-decoration-none small">
-                                        View Report
-                                    </a>
-                                }
+                                <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
+                                    <span class="badge bg-secondary-subtle text-secondary">@notification.Type</span>
+                                    <span class="badge bg-@(notification.IsRead ? "secondary" : "primary")-subtle text-@(notification.IsRead ? "secondary" : "primary")">@(notification.IsRead ? "Read" : "Unread")</span>
+                                    @if (targetUrl == null)
+                                    {
+                                        <span class="small text-muted">Information only</span>
+                                    }
+                                </div>
                             </div>
-                             @if (!notification.IsRead)
-                             {
-                                 <form asp-action="MarkAsRead" method="post" asp-route-id="@notification.NotificationId" class="ms-2 notification-action">
-                                     @Html.AntiForgeryToken()
-                                     <button type="submit" class="btn btn-sm btn-outline-secondary" title="Mark as read">
-                                         <i class="bi bi-check"></i>
-                                     </button>
-                                 </form>
-                             }
-                             <form asp-action="Delete" method="post" asp-route-id="@notification.NotificationId" class="ms-1 notification-action" data-ajax-delete="true">
-                                 @Html.AntiForgeryToken()
-                                 <button type="submit"
-                                         class="btn btn-sm btn-outline-danger"
-                                         data-notify-id="@notification.NotificationId"
-                                         title="Delete notification">
-                                     <i class="bi bi-trash"></i>
-                                 </button>
-                             </form>
+                            <div class="d-flex align-items-center ms-2 flex-shrink-0 notification-actions">
+                                @if (!notification.IsRead)
+                                {
+                                    <form asp-action="MarkAsRead" method="post" asp-route-id="@notification.NotificationId" class="notification-action">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Mark as read" aria-label="Mark as read">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    </form>
+                                }
+                                <form asp-action="Delete" method="post" asp-route-id="@notification.NotificationId" class="notification-action ms-1" data-ajax-delete="true">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger"
+                                            data-notify-id="@notification.NotificationId"
+                                            title="Delete notification" aria-label="Delete notification">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 }
             }
             else
             {
-                <div class="text-center py-5">
-                    <i class="bi bi-bell-slash fs-1 text-muted mb-3"></i>
-                    <h5 class="text-muted">No notifications</h5>
-                    <p class="text-muted">You're all caught up! New notifications will appear here.</p>
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="bi bi-bell-slash"></i></div>
+                    <h6>No notifications</h6>
+                    <p>You're all caught up. Alerts, report updates, and announcements for your account will appear here.</p>
                 </div>
             }
         </div>
     </div>
+    @if (Model.TotalPages > 1)
+    {
+        <div class="card-footer bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <small class="text-muted">Page @Model.Page of @Model.TotalPages · @Model.TotalCount notifications</small>
+            <nav aria-label="Notification pages">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page - 1)" aria-label="Previous page">Previous</a>
+                    </li>
+                    @for (var p = Math.Max(1, Model.Page - 2); p <= Math.Min(Model.TotalPages, Model.Page + 2); p++)
+                    {
+                        <li class="page-item @(p == Model.Page ? "active" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-page="@p">@p</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page + 1)" aria-label="Next page">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
 </div>
 
 @section Scripts {

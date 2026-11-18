@@ -1,14 +1,15 @@
-@model DashboardViewModel
+﻿@model DashboardViewModel
 @{
     ViewData["Title"] = "LGU Dashboard";
     ViewData["PageTitle"] = "LGU Monitoring Dashboard";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">
-        <i class="bi bi-speedometer2 me-2"></i>LGU Monitoring Dashboard
-    </h1>
-    <span class="badge bg-info-subtle text-info fs-6">@Model.CurrentRole</span>
+<div class="page-head">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-speedometer2 me-2 page-icon"></i>LGU Monitoring Dashboard</h1>
+        <p class="page-sub">Canals, sensors, flood risk, and incoming community reports for your city.</p>
+    </div>
+    <span class="badge bg-primary-subtle text-primary fs-6">@Model.CurrentRole</span>
 </div>
 
 <partial name="_DashboardSummary" model="Model" />
@@ -38,7 +39,7 @@
                                 {
                                     <tr>
                                         <td>
-                                            <span class="badge bg-@SeverityStyles.BadgeClass(alert.Severity)">@alert.Severity</span>
+                                            @Html.SeverityBadge(alert.Severity)
                                         </td>
                                         <td>@alert.Canal?.CanalName</td>
                                         <td class="small">@alert.Description</td>
@@ -51,9 +52,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">
-                        <i class="bi bi-check-circle-fill me-2 text-success"></i>No active alerts
-                    </p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-check-circle", Title = "No active alerts", Message = "All monitored canals are within their normal range." })" />
                 }
             </div>
         </div>
@@ -72,12 +71,12 @@
                         @foreach (var report in Model.RecentReports)
                         {
                             <li class="list-group-item border-0 py-2">
-                                <div class="d-flex justify-content-between">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
                                     <div>
                                         <h6 class="mb-1 fw-medium">@report.Title</h6>
-                                        <small class="text-muted d-block">@report.Canal?.CanalName - @report.ReportType</small>
+                                        <small class="text-muted d-block">@(report.Canal?.CanalName ?? "Unassigned canal") · @report.ReportType</small>
                                     </div>
-                                    <span class="badge bg-info">@report.Status</span>
+                                    @Html.StatusBadge(report.Status)
                                 </div>
                             </li>
                         }
@@ -85,7 +84,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">No pending reports.</p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-journal-check", Title = "No community reports", Message = "New resident reports will appear here for investigation." })" />
                 }
             </div>
         </div>
@@ -126,7 +125,7 @@
                                                     risk.RiskLevel == "High" ? "warning" :
                                                     risk.RiskLevel == "Moderate" ? "info" : "success";
                                             }
-                                            <span class="badge bg-@riskClass">@risk.RiskLevel</span>
+                                            @Html.StatusBadge(risk.RiskLevel)
                                         </td>
                                     </tr>
                                 }
@@ -136,7 +135,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">No risk assessments available.</p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-shield-check", Title = "No risk assessments yet", Message = "Assessments appear after sensor readings are processed." })" />
                 }
             </div>
         </div>
@@ -167,7 +166,7 @@
                                         <td class="fw-medium">@reading.Canal?.CanalName</td>
                                         <td class="small">@reading.WaterLevel</td>
                                         <td class="small">@reading.DebrisLevel%</td>
-                                        <td class="small text-muted">@reading.RecordedAt.ToString("HH:mm")</td>
+                                        <td class="small text-muted"><time data-utc="@COMS_MVC.Helpers.PhTime.AsUtc(reading.RecordedAt).ToString("o")" title="@COMS_MVC.Helpers.PhTime.ToPhString(reading.RecordedAt) (Philippine time)">@COMS_MVC.Helpers.PhTime.ToRelative(reading.RecordedAt)</time></td>
                                     </tr>
                                 }
                             </tbody>
@@ -176,9 +175,13 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">No sensor readings available.</p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-activity", Title = "No sensor readings yet", Message = "Readings appear once sensors report water levels." })" />
                 }
             </div>
         </div>
     </div>
 </div>
+
+
+
+

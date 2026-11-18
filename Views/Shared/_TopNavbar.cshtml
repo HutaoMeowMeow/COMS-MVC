@@ -161,7 +161,10 @@
                 list.innerHTML = unique.map(function (n) {
                     var when = n.relative || relTime(n.createdAtUtc) || n.createdAtPh || n.createdAt || '';
                     var abs = n.createdAtPh || '';
-                    return '<a class="dropdown-item notification-preview-item" href="/Notifications">' +
+                    // Server resolves the real destination; general notices
+                    // without an owning module fall back to the full list.
+                    var href = n.url || '/Notifications';
+                    return '<a class="dropdown-item notification-preview-item" href="' + esc(href) + '">' +
                         '<span class="d-flex gap-2 align-items-start">' +
                         '<i class="bi ' + typeIcon(n.type) + ' mt-1"></i>' +
                         '<span class="min-w-0 flex-grow-1">' +

@@ -50,6 +50,7 @@ public sealed class FloodNewsCacheTests : IDisposable
             Enabled = enabled,
             GdacsFeedUrl = "https://example.com/gdacs.xml",
             PhilippineNewsFeeds = feeds,
+            TargetedSearchFeeds = new List<string>(),
             CacheMinutes = 20,
             MaxArticles = 30,
             MaxAgeDays = 7,
@@ -115,11 +116,11 @@ public sealed class FloodNewsCacheTests : IDisposable
         Assert.NotEmpty(good.Articles);
 
         // Evict the read cache but keep last-good; now fail every provider.
-        _cache.Remove("flood-news-v4");
+        _cache.Remove("flood-news-v5");
         handler.Responder = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError);
         // Bypass the 2-minute force cooldown with a fresh service on the same cache.
         var failing = Service(handler);
-        _cache.Remove("flood-news-v4:force-at");
+        _cache.Remove("flood-news-v5:force-at");
         var stale = await failing.RefreshAsync();
 
         Assert.True(stale.IsStale);
@@ -128,8 +129,8 @@ public sealed class FloodNewsCacheTests : IDisposable
         // The stale response must be a copy: mutating it leaves last-good intact.
         var before = stale.Articles.Count;
         stale.Articles.Clear();
-        _cache.Remove("flood-news-v4");
-        _cache.Remove("flood-news-v4:force-at");
+        _cache.Remove("flood-news-v5");
+        _cache.Remove("flood-news-v5:force-at");
         var stale2 = await failing.RefreshAsync();
         Assert.Equal(before, stale2.Articles.Count);
     }

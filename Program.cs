@@ -171,6 +171,7 @@ builder.Services.AddScoped<ISensorService, SensorService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IFloodRiskService, FloodRiskService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IReportDraftService, ReportDraftService>();
 builder.Services.AddScoped<IDataSeeder, DataSeeder>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 

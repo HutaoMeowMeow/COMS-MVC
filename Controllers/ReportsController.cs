@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace COMS_MVC.Controllers
 {
@@ -16,6 +17,8 @@ namespace COMS_MVC.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly ILookupService _lookups;
         private readonly ICebuBoundaryService _cebuBoundary;
+        private readonly IReportDraftService _drafts;
+        private readonly IMemoryCache _cache;
 
         public ReportsController(ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
@@ -27,7 +30,9 @@ namespace COMS_MVC.Controllers
             ILogger<ReportsController> logger,
             IWebHostEnvironment env,
             ILookupService lookups,
-            ICebuBoundaryService cebuBoundary)
+            ICebuBoundaryService cebuBoundary,
+            IReportDraftService drafts,
+            IMemoryCache cache)
         {
             _context = context;
             _userManager = userManager;
@@ -40,14 +45,17 @@ namespace COMS_MVC.Controllers
             _env = env;
             _lookups = lookups;
             _cebuBoundary = cebuBoundary;
+            _drafts = drafts;
+            _cache = cache;
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? status = null, string? type = null, int page = 1)
         {
             var query = _context.CommunityReports
                 .Include(r => r.Canal)
                 .Include(r => r.User)
+                .AsNoTracking()
                 .AsQueryable();
 
             if (User.IsInRole("Resident"))
@@ -70,10 +78,42 @@ namespace COMS_MVC.Controllers
                 }
             }
 
-            ViewBag.ReportTypes = new SelectList(await _lookups.GetOptionsAsync(LookupService.Categories.ReportType), "Value", "DisplayName");
-            ViewBag.ReportStatuses = new SelectList(await _lookups.GetOptionsAsync(LookupService.Categories.ReportStatus), "Value", "DisplayName");
+            // Status mix for the whole (role-scoped) queue, so LGU personnel can
+            // see at a glance what is new, pending, in progress, or resolved.
+            var statusCounts = await query
+                .GroupBy(r => r.Status)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Status ?? "Unknown", x => x.Count);
+            ViewBag.StatusCounts = statusCounts;
 
-            var reports = await query.OrderByDescending(r => r.CreatedAt).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(r => r.Status == status);
+            }
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                query = query.Where(r => r.ReportType == type);
+            }
+            ViewBag.CurrentStatus = status;
+            ViewBag.CurrentType = type;
+
+            const int pageSize = 20;
+            page = Math.Max(1, page);
+            var total = await query.CountAsync();
+            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+            page = Math.Min(page, totalPages);
+
+            ViewBag.Page = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalCount = total;
+            ViewBag.ReportTypes = new SelectList(await _lookups.GetOptionsAsync(LookupService.Categories.ReportType), "Value", "DisplayName", type);
+            ViewBag.ReportStatuses = new SelectList(await _lookups.GetOptionsAsync(LookupService.Categories.ReportStatus), "Value", "DisplayName", status);
+
+            var reports = await query
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
             return View(reports);
         }
 
@@ -95,6 +135,9 @@ namespace COMS_MVC.Controllers
                 .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
+
+            // Unfinished draft (if any) is shown as a resumable card on this page.
+            ViewBag.Draft = await _drafts.GetForUserAsync(userId);
 
             return View(reports);
         }
@@ -154,7 +197,8 @@ namespace COMS_MVC.Controllers
                 ReportType = "Garbage / Debris",
                 CreatedAt = DateTime.UtcNow,
                 Latitude = 10.3157,
-                Longitude = 123.8854
+                Longitude = 123.8854,
+                SubmissionId = Guid.NewGuid().ToString("N")
             };
 
             // Optional deep-link: staff/canal pages may suggest a canal, but the
@@ -167,30 +211,220 @@ namespace COMS_MVC.Controllers
                 {
                     model.Title = $"Issue at {canal.CanalName}";
                     model.Location = canal.Location;
-                if (_cebuBoundary.Contains(canal.Latitude, canal.Longitude))
-                {
-                    model.Latitude = canal.Latitude;
-                    model.Longitude = canal.Longitude;
-                }
+                    if (_cebuBoundary.Contains(canal.Latitude, canal.Longitude))
+                    {
+                        model.Latitude = canal.Latitude;
+                        model.Longitude = canal.Longitude;
+                    }
                 }
                 else
                 {
                     model.CanalId = null;
                 }
             }
+            else if (int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                // Restore the resident's latest unfinished draft (values and the
+                // server-side photo attachment). Autosave updates this same row.
+                var draft = await _drafts.GetForUserAsync(userId);
+                if (draft != null)
+                {
+                    model.CanalId = draft.CanalId;
+                    model.ReportType = await _lookups.IsValidAsync(
+                        LookupService.Categories.ReportType, draft.ReportType)
+                        ? draft.ReportType
+                        : model.ReportType;
+                    model.Title = draft.Title;
+                    model.Description = draft.Description;
+                    model.Location = draft.Location;
+                    model.Latitude = draft.Latitude ?? model.Latitude;
+                    model.Longitude = draft.Longitude ?? model.Longitude;
+                    model.DraftSavedAt = draft.UpdatedAt;
+                    model.DraftPhotoPath = draft.PhotoPath;
+                    model.DraftPhotoFileName = draft.PhotoFileName;
+                    ViewBag.DraftRestored = true;
+                }
+            }
 
             return View(model);
         }
 
+        /// <summary>
+        /// Autosave / manual "Save as Draft". Only this resident's own draft is
+        /// created or updated; an invalid photo never discards the text fields.
+        /// Accepts AJAX (JSON) and normal form posts (redirect fallback).
+        /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Resident")]
-        public async Task<IActionResult> Create(CommunityReportFormViewModel model)
+        public async Task<IActionResult> SaveDraft(
+            CommunityReportFormViewModel model, bool removePhoto = false, CancellationToken ct = default)
+        {
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                if (IsAjaxRequest())
+                {
+                    return Json(new { success = false, message = "Please sign in again." });
+                }
+                return Challenge();
+            }
+
+            var result = await _drafts.SaveAsync(
+                userId,
+                new ReportDraftInput
+                {
+                    CanalId = model.CanalId,
+                    ReportType = model.ReportType,
+                    Title = model.Title,
+                    Description = model.Description,
+                    Location = model.Location,
+                    Latitude = model.Latitude,
+                    Longitude = model.Longitude
+                },
+                model.Photo,
+                removePhoto,
+                ct);
+
+            var savedAt = result.Draft?.UpdatedAt ?? DateTime.UtcNow;
+            var draftPhotoUrl = result.Draft?.PhotoPath != null
+                ? Url.Action(nameof(DraftPhoto), "Reports", new { v = result.Draft.UpdatedAt.Ticks })
+                : null;
+            if (IsAjaxRequest())
+            {
+                return Json(new
+                {
+                    success = true,
+                    saved = result.Draft != null,
+                    empty = result.Draft == null,
+                    warning = result.Warning,
+                    savedAtUtc = savedAt.ToString("o"),
+                    savedAtPh = Helpers.PhTime.ToPhString(savedAt),
+                    draftPhotoUrl,
+                    draftPhotoFileName = result.Draft?.PhotoFileName,
+                    message = result.Warning ?? "Draft saved."
+                });
+            }
+
+            if (result.Warning != null)
+            {
+                TempData["AlertMessage"] = result.Warning;
+            }
+            else
+            {
+                TempData["SuccessMessage"] = "Draft saved. You can continue this report later.";
+            }
+            return RedirectToAction(nameof(Create));
+        }
+
+        /// <summary>Deletes only the authenticated resident's own draft.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Resident")]
+        public async Task<IActionResult> DeleteDraft(string? returnUrl = null, CancellationToken ct = default)
+        {
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                if (IsAjaxRequest())
+                {
+                    return Json(new { success = false, message = "Please sign in again." });
+                }
+                return Challenge();
+            }
+
+            var draft = await _drafts.GetForUserAsync(userId);
+            var ok = draft == null || await _drafts.DeleteAsync(draft.ReportDraftId, userId, ct);
+            if (IsAjaxRequest())
+            {
+                return Json(new
+                {
+                    success = ok,
+                    message = ok ? "Draft deleted." : "Draft could not be deleted."
+                });
+            }
+            if (ok)
+            {
+                TempData["SuccessMessage"] = "Draft deleted.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = "Draft could not be deleted. Please try again.";
+            }
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+            return RedirectToAction(nameof(Create));
+        }
+
+        /// <summary>
+        /// Streams the authenticated resident's own saved draft photo. Draft
+        /// images are stored outside wwwroot, so they cannot be fetched by a
+        /// guessed URL and are never exposed to other accounts.
+        /// </summary>
+        [HttpGet]
+        [Authorize(Roles = "Resident")]
+        public async Task<IActionResult> DraftPhoto(CancellationToken ct = default)
+        {
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return Challenge();
+            }
+            var draft = await _drafts.GetForUserAsync(userId, ct);
+            var diskPath = ReportDraftService.ResolveDraftPhotoDiskPath(
+                _env.ContentRootPath, draft?.PhotoPath);
+            if (diskPath == null || !System.IO.File.Exists(diskPath))
+            {
+                return NotFound();
+            }
+            var extension = Path.GetExtension(diskPath).ToLowerInvariant();
+            var contentType = extension == ".png" ? "image/png" : "image/jpeg";
+            Response.Headers["Cache-Control"] = "private, no-store";
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return PhysicalFile(diskPath, contentType);
+        }
+
+        private bool IsAjaxRequest() =>
+            string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest",
+                StringComparison.OrdinalIgnoreCase);
+
+        private static string SubmitKey(int userId, string? submissionId) =>
+            $"report-submit:{userId}:{submissionId}";
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Resident")]
+        public async Task<IActionResult> Create(CommunityReportFormViewModel model, CancellationToken ct = default)
         {
             model.Title = (model.Title ?? string.Empty).Trim();
             model.Description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
             model.Location = string.IsNullOrWhiteSpace(model.Location) ? null : model.Location.Trim();
             model.ReportType = (model.ReportType ?? string.Empty).Trim();
+
+            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
+            {
+                return Challenge();
+            }
+
+            // The resident's own draft supplies the pending photo attachment.
+            // Ownership comes from the authenticated user id — a posted draft id
+            // can never select another user's record.
+            var draft = await _context.ReportDrafts
+                .FirstOrDefaultAsync(d => d.UserId == userId, ct);
+            if (draft != null)
+            {
+                model.DraftSavedAt = draft.UpdatedAt;
+                model.DraftPhotoPath = draft.PhotoPath;
+                model.DraftPhotoFileName = draft.PhotoFileName;
+            }
+
+            // Idempotency: the same rendered form can be posted twice (double
+            // click, retry, or refresh of the POST response). It is accepted once.
+            if (!string.IsNullOrWhiteSpace(model.SubmissionId)
+                && _cache.TryGetValue(SubmitKey(userId, model.SubmissionId), out _))
+            {
+                TempData["AlertMessage"] = "This report was already submitted. Duplicate submission was prevented.";
+                return RedirectToAction(nameof(MyReports));
+            }
 
             if (!await _lookups.IsValidAsync(LookupService.Categories.ReportType, model.ReportType))
             {
@@ -257,11 +491,6 @@ namespace COMS_MVC.Controllers
                 TempData["AlertMessage"] = "Your report has been submitted for review. Some content needs confirmation by staff before it is treated as an active incident.";
             }
 
-            if (!int.TryParse(_userManager.GetUserId(User), out var userId))
-            {
-                return Challenge();
-            }
-
             // Canal is optional: a resident reports a physical location, and
             // LGU/Admin identifies the canal afterwards. Only validate when one
             // was actually supplied (e.g. via a deep-link).
@@ -275,10 +504,28 @@ namespace COMS_MVC.Controllers
                 }
             }
 
+            // Second-tab / re-submit guard: an identical report from the same
+            // resident within a short window is the same submission. The draft
+            // is kept, so nothing is lost.
+            var recentDuplicate = await _context.CommunityReports
+                .AsNoTracking()
+                .AnyAsync(r => r.UserId == userId
+                    && r.Title == model.Title
+                    && r.Description == (model.Description ?? string.Empty)
+                    && r.CreatedAt >= DateTime.UtcNow.AddMinutes(-2), ct);
+            if (recentDuplicate)
+            {
+                TempData["AlertMessage"] = "This report was already submitted. Duplicate submission was prevented.";
+                return RedirectToAction(nameof(MyReports));
+            }
+
             string? photoPath = null;
             byte[]? photoBytes = null;
             string? photoExt = null;
             ImageRelevanceResult? photoRelevance = null;
+
+            // A new upload wins. Otherwise the draft's persisted attachment is
+            // reused: it survived the refresh because it is stored server-side.
             if (model.Photo != null && model.Photo.Length > 0)
             {
                 if (string.IsNullOrEmpty(_env.WebRootPath))
@@ -289,12 +536,48 @@ namespace COMS_MVC.Controllers
                 // Fully validated in memory BEFORE anything touches the disk:
                 // renamed videos/GIFs and corrupt files are rejected here and
                 // never saved anywhere.
-                var (bytes, ext, error) = await ImageUploadValidator.ValidateAsync(model.Photo);
+                var (bytes, ext, error) = await ImageUploadValidator.ValidateAsync(model.Photo, ct);
                 if (error != null)
                 {
                     ModelState.AddModelError(nameof(model.Photo), error);
                     return View(model);
                 }
+                photoBytes = bytes;
+                photoExt = ext;
+            }
+            else if (draft?.PhotoPath != null)
+            {
+                var draftDiskPath = ReportDraftService.ResolveDraftPhotoDiskPath(
+                    _env.ContentRootPath, draft.PhotoPath);
+                if (draftDiskPath != null && System.IO.File.Exists(draftDiskPath))
+                {
+                    try
+                    {
+                        photoBytes = await System.IO.File.ReadAllBytesAsync(draftDiskPath, ct);
+                    }
+                    catch (Exception)
+                    {
+                        photoBytes = null;
+                    }
+                    if (photoBytes != null)
+                    {
+                        var contentError = ImageUploadValidator.ValidateContent(photoBytes);
+                        if (contentError != null)
+                        {
+                            ModelState.AddModelError(nameof(model.Photo), contentError);
+                            return View(model);
+                        }
+                        photoExt = Path.GetExtension(draft.PhotoPath).ToLowerInvariant();
+                        if (photoExt != ".jpg" && photoExt != ".jpeg" && photoExt != ".png")
+                        {
+                            photoExt = ".jpg";
+                        }
+                    }
+                }
+            }
+
+            if (photoBytes != null)
+            {
                 // Content-relevance gate (server-side, before anything saves):
                 // the photo must show a canal, drainage, flood, or related
                 // condition. Rejected photos are discarded here and never
@@ -302,36 +585,35 @@ namespace COMS_MVC.Controllers
                 ImageRelevanceResult? relevance = null;
                 if (_imageRelevance.IsEnabled)
                 {
-                    relevance = await _imageRelevance.AnalyzeAsync(bytes!);
+                    relevance = await _imageRelevance.AnalyzeAsync(photoBytes, ct);
                     if (relevance.Status == "Irrelevant")
                     {
                         ModelState.AddModelError(nameof(model.Photo),
-                            "This image does not appear to show a canal obstruction, drainage issue, flooding, or another condition monitored by COMS. Please upload a relevant image.");
+                            "This image does not appear to show a canal obstruction, drainage issue, flooding, or another condition monitored by COMS. Please upload a relevant image. Your draft has been kept.");
                         return View(model);
                     }
                     if (relevance.Status == "Uncertain")
                     {
                         ModelState.AddModelError(nameof(model.Photo),
-                            relevance.Reason ?? "The photo could not be reliably assessed. Please upload a clearer photo.");
+                            (relevance.Reason ?? "The photo could not be reliably assessed. Please upload a clearer photo.")
+                            + " Your draft has been kept.");
                         return View(model);
                     }
                 }
                 photoRelevance = relevance;
-                photoBytes = bytes;
-                photoExt = ext;
                 try
                 {
-                    var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "reports");
+                    var uploadsFolder = Path.Combine(_env.WebRootPath!, "uploads", "reports");
                     Directory.CreateDirectory(uploadsFolder);
 
                     var uniqueName = $"report_{Guid.NewGuid():N}{photoExt}";
                     var filePath = Path.Combine(uploadsFolder, uniqueName);
-                    await System.IO.File.WriteAllBytesAsync(filePath, photoBytes!);
+                    await System.IO.File.WriteAllBytesAsync(filePath, photoBytes, ct);
                     photoPath = $"/uploads/reports/{uniqueName}";
                 }
                 catch (Exception)
                 {
-                    ModelState.AddModelError(nameof(model.Photo), "Could not save the photo. Please try again.");
+                    ModelState.AddModelError(nameof(model.Photo), "Could not save the photo. Please try again. Your draft has been kept.");
                     return View(model);
                 }
             }
@@ -360,8 +642,44 @@ namespace COMS_MVC.Controllers
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                _context.CommunityReports.Add(report);
-                await _context.SaveChangesAsync();
+                var draftPhotoToDelete = draft?.PhotoPath;
+                await using (var tx = await _context.Database.BeginTransactionAsync(ct))
+                {
+                    _context.CommunityReports.Add(report);
+                    // Draft is consumed in the same transaction: either the
+                    // submitted report and the draft removal both happen, or
+                    // neither does.
+                    if (draft != null)
+                    {
+                        _context.ReportDrafts.Remove(draft);
+                    }
+                    await _context.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                }
+
+                // The submitted report photo (if any) was copied into
+                // /uploads/reports above, so the draft attachment can go.
+                if (draftPhotoToDelete != null)
+                {
+                    try
+                    {
+                        var draftDiskPath = ReportDraftService.ResolveDraftPhotoDiskPath(
+                            _env.ContentRootPath, draftPhotoToDelete);
+                        if (draftDiskPath != null && System.IO.File.Exists(draftDiskPath))
+                        {
+                            System.IO.File.Delete(draftDiskPath);
+                        }
+                    }
+                    catch
+                    {
+                        // Best-effort cleanup.
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.SubmissionId))
+                {
+                    _cache.Set(SubmitKey(userId, model.SubmissionId), true, TimeSpan.FromMinutes(30));
+                }
 
                 // Category mismatch is advisory, never blocking: the photo is
                 // relevant to COMS but suggests a different report type.
@@ -390,6 +708,8 @@ namespace COMS_MVC.Controllers
                         $"A new report '{model.Title}' has been submitted for review.",
                         "Report",
                         null,
+                        report.CommunityReportId,
+                        COMS_MVC.Helpers.NotificationLinks.Report,
                         report.CommunityReportId);
                 }
                 catch
@@ -551,6 +871,8 @@ namespace COMS_MVC.Controllers
                         $"Your report '{report.Title}' has been updated to: {status}.",
                         "Report",
                         null,
+                        report.CommunityReportId,
+                        COMS_MVC.Helpers.NotificationLinks.Report,
                         report.CommunityReportId);
                 }
                 catch
@@ -655,5 +977,25 @@ namespace COMS_MVC.Controllers
         public double? Longitude { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>
+        /// Idempotency key attached to one rendered form. A repeated POST of the
+        /// same form (double click / refresh of the POST result) is detected and
+        /// never creates a second report.
+        /// </summary>
+        public string? SubmissionId { get; set; }
+
+        // Display-only draft state, populated by the controller. Never bound
+        // from the request body, so a posted value cannot point the form at
+        // another user's attachment.
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        public DateTime? DraftSavedAt { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        public string? DraftPhotoPath { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        public string? DraftPhotoFileName { get; set; }
     }
 }
+

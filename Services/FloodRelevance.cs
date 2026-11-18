@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 
 namespace COMS_MVC.Services
 {
@@ -10,7 +10,7 @@ namespace COMS_MVC.Services
     /// incidental/metaphorical "flood" mentions are rejected. In particular,
     /// political/budget-process framing (including transparency/watchdog
     /// fights over flood-control funds) without flood-event substance is
-    /// politics â€” not flood news â€” and a bare "flood control" mention counts
+    /// politics — not flood news — and a bare "flood control" mention counts
     /// only beside concrete prevention-work evidence. Pure function of
     /// title+body text, so it is unit-testable and applied identically on
     /// initial load, refresh, cached results, and background fetches (the
@@ -53,7 +53,7 @@ namespace COMS_MVC.Services
         };
 
         // Flood-control / mitigation project language: relevant ONLY as
-        // actual prevention work (see WorkTerms) â€” but NOT when the framing
+        // actual prevention work (see WorkTerms) — but NOT when the framing
         // is political / budget-process without flood-event substance
         // (see veto below).
         private static readonly string[] ProjectTerms =
@@ -62,7 +62,7 @@ namespace COMS_MVC.Services
         };
 
         // Concrete prevention-work language. A "flood control" mention counts
-        // only beside evidence of real work â€” a budget speech that merely says
+        // only beside evidence of real work — a budget speech that merely says
         // the words is process news, not flood news.
         private static readonly string[] WorkTerms =
         {
@@ -72,17 +72,17 @@ namespace COMS_MVC.Services
             "declogging", "desilting",
             "widening", "pump", "pumping station",
             "embankment", "drainage", "floodgate", "dike", "river wall",
-            "completed", "completion", "launched", "groundbreaking",
+            "complete", "completes", "completed", "completion", "launched", "groundbreaking",
             "inaugurated", "inauguration", "repair", "repaired", "retrofitting"
         };
 
         // Political / budget-process framing. When present WITHOUT
-        // flood-event substance, the story is politics â€” not flood news â€”
+        // flood-event substance, the story is politics — not flood news —
         // even if it says "flood control" (e.g. budget-transparency fights
         // over flood-control allocations). (A genuine flood event described
         // in the same article still counts; event evidence always wins.)
         // NOTE: single words match on word boundaries, so full word forms
-        // are listed explicitly â€” bare stems never match.
+        // are listed explicitly — bare stems never match.
         private static readonly string[] AllegationMarkers =
         {
             "allegation", "allegations", "alleged", "allege",
@@ -95,7 +95,11 @@ namespace COMS_MVC.Services
             "controversy", "controversies", "controversial",
             "scandal", "scandals", "impeach", "impeachment",
             "accusation", "accusations", "accused",
-            "wrongdoing", "misuse",
+            "wrongdoing", "misuse", "misused", "mishandled", "mishandling",
+            "scam", "scams", "scammed", "racket", "rackets", "syndicate",
+            "sandiganbayan", "ombudsman", "whistleblower", "probe", "probed",
+            "investigation", "investigations", "investigated", "indicted",
+            "raps", "lawsuit", "lawsuits", "graft case", "flood control case",
             "transparency", "watchdog", "watchdogs",
             "budget", "appropriation", "appropriations",
             "allocation", "allocations", "itemization",
@@ -150,7 +154,7 @@ namespace COMS_MVC.Services
         };
 
         // Topics that veto weak/body-only acceptance (never veto strong terms
-        // or a flood-word title subject â€” e.g. quake survivors facing floods).
+        // or a flood-word title subject — e.g. quake survivors facing floods).
         private static readonly string[] ExclusionTopics =
         {
             "earthquake", "magnitude", "aftershock", "volcanic", "volcano eruption",
@@ -175,6 +179,12 @@ namespace COMS_MVC.Services
 
         private static readonly Regex AdvisoryLabelRegex = new(
             @"\b(warning|advisory|alert|watch|forecast|outlook|expected|may experience|could experience|braces? for|prepares? for)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Verbs/nouns that indicate an incident actually happening (as opposed
+        // to prevention work). Used only to label a card accurately.
+        private static readonly Regex EventVerbRegex = new(
+            @"\b(hit|hits|struck|displaced|evacuat\w*|submerged|inundat\w*|stranded|swept|rose|rising|killed|drown\w*|missing|rescued|suffer\w*)\b",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly string[] CebuPriorityAreas =
@@ -248,6 +258,18 @@ namespace COMS_MVC.Services
         }
 
         /// <summary>
+        /// True when the text names a foreign country/city and no Philippine
+        /// anchor outweighs it. Used only as a veto on the "trusted Philippine
+        /// publisher" anchor, so a foreign flood carried by a PH newsroom can
+        /// never pass the Philippines gate.
+        /// </summary>
+        public static bool HasForeignLocationContext(string? text)
+        {
+            var lower = (text ?? string.Empty).ToLowerInvariant();
+            return lower.Length > 0 && ForeignPlaces.Any(k => Matches(lower, k));
+        }
+
+        /// <summary>
         /// Strict relevance verdict over title + body text.
         /// Evidence is evaluated per sentence so that negated mentions
         /// ("without any flood-prevention connection", "no flooding reported")
@@ -274,14 +296,14 @@ namespace COMS_MVC.Services
                 return false;
 
             // 1. Genuine flood-event substance in a clear sentence: accept.
-            //    Always wins â€” even inside political coverage, documented
+            //    Always wins — even inside political coverage, documented
             //    flood events, damage, or warnings are real flood news.
             if (sentences.Any(s => StrongTerms.Any(k => Matches(s.Lower, k))
                 || DamageTerms.Any(k => Matches(s.Lower, k))))
                 return true;
 
             // 1b. Political/corruption-allegation framing WITHOUT flood-event
-            //     substance above is politics, not flood news â€” even when it
+            //     substance above is politics, not flood news — even when it
             //     says "flood control". Reject here.
             if (AllegationMarkers.Any(k => Matches(lowerAll, k)))
                 return false;
@@ -297,11 +319,17 @@ namespace COMS_MVC.Services
 
             // 2. Flood word as the TITLE subject (titles summarize the story):
             //    accept unless the title itself is metaphorical
-            //    ("Flood of support...", "City flooded with calls").
+            //    ("Flood of support...", "City flooded with calls"). A bare
+            //    "flood control"/"flood mitigation" phrase is NOT event
+            //    substance: it is stripped first, so a project title only
+            //    qualifies through the concrete prevention-work rule above.
             var clearTitle = string.Join(" ",
                 Regex.Split(t, @"[.?!;\n]+").Where(s => !NegationRegex.IsMatch(s)));
+            var titleBody = ProjectTerms.Aggregate(
+                clearTitle.ToLowerInvariant(),
+                (text, term) => text.Replace(term, " ", StringComparison.Ordinal));
             if (!MetaphorRegex.IsMatch(clearTitle)
-                && FloodWords.Any(k => Matches(clearTitle.ToLowerInvariant(), k)))
+                && FloodWords.Any(k => Matches(titleBody, k)))
                 return true;
 
             // 3. Overflow words need water context in the SAME sentence.
@@ -333,10 +361,22 @@ namespace COMS_MVC.Services
         /// "Advisory" when it talks about warnings/forecasts, else "Report".
         /// Never invents severity or locations.
         /// </summary>
-        public static string TopicLabel(string? title, string? snippet) =>
-            AdvisoryLabelRegex.IsMatch(((title ?? string.Empty) + "\n" + (snippet ?? string.Empty)))
-                ? "Advisory"
-                : "Report";
+        public static string TopicLabel(string? title, string? snippet)
+        {
+            var text = (title ?? string.Empty) + "\n" + (snippet ?? string.Empty);
+            if (AdvisoryLabelRegex.IsMatch(text))
+            {
+                return "Advisory";
+            }
+            // Drainage/flood-control works, rehabilitation, or design news is a
+            // prevention story, not a reported incident. Label it accurately so
+            // the card does not imply that flooding is happening right now.
+            var lower = text.ToLowerInvariant();
+            var isPreventionWork = ProjectTerms.Any(k => Matches(lower, k))
+                && WorkTerms.Any(k => Matches(lower, k));
+            var hasIncidentVerb = EventVerbRegex.IsMatch(lower);
+            return isPreventionWork && !hasIncidentVerb ? "Prevention" : "Report";
+        }
 
         /// <summary>Cebu City + nearby communities sort first (same recency).</summary>
         public static bool IsCebuPriority(IEnumerable<string> affectedAreas)

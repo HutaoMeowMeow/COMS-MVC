@@ -21,6 +21,8 @@ namespace COMS_MVC.Data
 
         public DbSet<CommunityReport> CommunityReports { get; set; }
 
+        public DbSet<ReportDraft> ReportDrafts { get; set; }
+
         public DbSet<SupportTicket> SupportTickets { get; set; }
 
         public DbSet<SupportMessage> SupportMessages { get; set; }
@@ -123,6 +125,30 @@ namespace COMS_MVC.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
+            builder.Entity<ReportDraft>(entity =>
+            {
+                entity.HasKey(e => e.ReportDraftId);
+                entity.Property(e => e.ReportType).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Title).HasMaxLength(150);
+                entity.Property(e => e.Description).HasMaxLength(2000);
+                entity.Property(e => e.Location).HasMaxLength(200);
+                entity.Property(e => e.PhotoPath).HasMaxLength(500);
+                entity.Property(e => e.PhotoFileName).HasMaxLength(255);
+                // One active draft per resident: autosave updates this row
+                // instead of inserting a new record on every field change.
+                entity.HasIndex(e => e.UserId).IsUnique();
+                entity.HasIndex(e => e.UpdatedAt);
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Canal)
+                      .WithMany()
+                      .HasForeignKey(e => e.CanalId)
+                      .IsRequired(false)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
             builder.Entity<SupportTicket>(entity =>
             {
                 entity.HasKey(e => e.SupportTicketId);
@@ -174,7 +200,13 @@ namespace COMS_MVC.Data
                 entity.Property(e => e.Title).IsRequired().HasMaxLength(150);
                 entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
                 entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.EntityType).HasMaxLength(50);
+                entity.HasIndex(e => new { e.EntityType, e.EntityId });
                 entity.HasIndex(e => new { e.UserId, e.IsRead });
+                // Notification list/detail and unread-count queries filter by
+                // owner and order by creation time; index both shapes.
+                entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+                entity.HasIndex(e => new { e.UserId, e.IsRead, e.CreatedAt });
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.Notifications)
                       .HasForeignKey(e => e.UserId)

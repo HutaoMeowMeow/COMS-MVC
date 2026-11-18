@@ -34,6 +34,20 @@ namespace COMS_MVC.Services
         /// <summary>Back-compat single-feed value; appended when set.</summary>
         public string PhilippineNewsFeedUrl { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Philippines-scoped search feeds (keyless Google News RSS queries).
+        /// These surface flood/drainage/canal stories even when a publisher's
+        /// general feed happens to carry none that day. Every item still passes
+        /// the same strict <see cref="FloodRelevance"/> gate, the Philippines
+        /// gate, and the publisher-credibility filter before it is shown.
+        /// </summary>
+        public List<string> TargetedSearchFeeds { get; set; } = new()
+        {
+            "https://news.google.com/rss/search?q=flood+Philippines+when:7d&hl=en-PH&gl=PH&ceid=PH:en",
+            "https://news.google.com/rss/search?q=canal+OR+drainage+OR+estero+OR+%22flood+control%22+Philippines+when:14d&hl=en-PH&gl=PH&ceid=PH:en",
+            "https://news.google.com/rss/search?q=Philippines+%22flash+flood%22+OR+pagbaha+OR+%22heavy+rain%22+when:7d&hl=en-PH&gl=PH&ceid=PH:en"
+        };
+
         /// <summary>Minutes a successful fetch stays in IMemoryCache.</summary>
         public int CacheMinutes { get; set; } = 20;
 
@@ -125,7 +139,7 @@ namespace COMS_MVC.Services
         // PH place (foreign locations must not dominate), plus the v3 strict
         // flood-relevance classifier and political/budget-process veto.
         // Bumped so rows cached under older, looser rules are never served.
-        private const string CacheKey = "flood-news-v4";
+        internal const string CacheKey = "flood-news-v5";
 
         // ---------- providers ----------
 
@@ -141,7 +155,7 @@ namespace COMS_MVC.Services
             "Northern Mindanao", "Davao Region", "Soccsksargen", "Caraga",
             "Bangsamoro", "Cordillera", "Cagayan Valley", "Ilocos Region",
             "Cebu City", "Lapu-Lapu City", "Mandaue City", "Talisay City",
-            "Danao City", "Toledo City", "Naga City", "Carcar City", "Bogo City",
+            "Danao City", "Toledo City", "Naga City", "Carcar City", "Bogo City", "Cebu",
             "Consolacion", "Liloan", "Compostela", "Cordova", "Minglanilla",
             "San Fernando City", "Sibonga", "Argao", "Dalaguete", "Bantayan",
             "Madridejos", "Santa Fe", "Daanbantayan", "Medellin", "San Remigio",
@@ -205,6 +219,33 @@ namespace COMS_MVC.Services
             "Kalinga", "Apayao", "Abra", "Bontoc", "La Trinidad",
             "Luzon", "Visayas", "Mindanao", "Philippines", "Philippine"
         };
+
+        // Social networks, video platforms, and self-publishing blogs are not
+        // credible news sources for a government monitoring dashboard. Items
+        // attributed to them are discarded regardless of keywords.
+        private static readonly HashSet<string> BlockedPublishers = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "facebook", "fb", "youtube", "x", "twitter", "tiktok", "instagram",
+            "reddit", "linkedin", "pinterest", "threads", "tumblr", "medium",
+            "blogger", "wordpress", "substack", "quora"
+        };
+
+        // Recognised Philippine news organisations / official information
+        // agencies. Used ONLY to anchor a Philippines-scoped search result
+        // that has no explicit PH place in its title (the search feed itself
+        // is PH-scoped). Never used to bypass relevance.
+        private static readonly string[] KnownPhPublisherMarkers =
+        {
+            "inquirer", "philstar", "gma", "rappler", "abs-cbn", "abs cbn",
+            "manila bulletin", "manila times", "philippine news agency", "pna",
+            "daily tribune", "tribune", "sunstar", "cebu daily news",
+            "philippine information agency", "pia", "businessworld", "bworld",
+            "manila standard", "businessmirror", "cnn philippines", "news5",
+            "one news", "gmanews", "mindanews", "verafiles", "pressone",
+            "palawan news", "journal news", "bicol standard", "pna.gov.ph"
+        };
+
+        private sealed record FeedSource(string Url, string SourceName, bool IsSearchFeed);
 
         private readonly HttpClient _http;
         private readonly FloodNewsOptions _options;
@@ -301,7 +342,7 @@ namespace COMS_MVC.Services
                 // Each feed is isolated: one failure never affects the others.
                 var gdacsTask = FetchGdacsAsync(linked.Token);
                 var newsTasks = FeedUrls()
-                    .Select(feed => FetchPhilippineNewsAsync(feed.Url, feed.Source, linked.Token))
+                    .Select(feed => FetchPhilippineNewsAsync(feed, linked.Token))
                     .ToList();
                 var allTasks = new List<Task> { gdacsTask };
                 allTasks.AddRange(newsTasks);
@@ -381,24 +422,39 @@ namespace COMS_MVC.Services
             }
         }
 
-        private List<(string Url, string Source)> FeedUrls()
+        private List<FeedSource> FeedUrls()
         {
-            var urls = new List<(string Url, string Source)>();
+            var urls = new List<FeedSource>();
             if (_options.PhilippineNewsFeeds != null)
             {
                 foreach (var u in _options.PhilippineNewsFeeds.Where(u => !string.IsNullOrWhiteSpace(u)))
                 {
-                    urls.Add((u, SourceNameFor(u)));
+                    urls.Add(new FeedSource(u, SourceNameFor(u), IsSearchFeed(u)));
                 }
             }
             // Back-compat single value.
             if (!string.IsNullOrWhiteSpace(_options.PhilippineNewsFeedUrl)
                 && !urls.Any(x => x.Url == _options.PhilippineNewsFeedUrl))
             {
-                urls.Add((_options.PhilippineNewsFeedUrl, SourceNameFor(_options.PhilippineNewsFeedUrl)));
+                urls.Add(new FeedSource(
+                    _options.PhilippineNewsFeedUrl,
+                    SourceNameFor(_options.PhilippineNewsFeedUrl),
+                    IsSearchFeed(_options.PhilippineNewsFeedUrl)));
+            }
+            // Philippines-scoped targeted searches (flood / drainage / canal).
+            if (_options.TargetedSearchFeeds != null)
+            {
+                foreach (var u in _options.TargetedSearchFeeds.Where(u => !string.IsNullOrWhiteSpace(u)))
+                {
+                    urls.Add(new FeedSource(u, "PH News", true));
+                }
             }
             return urls.GroupBy(x => x.Url).Select(g => g.First()).ToList();
         }
+
+        private static bool IsSearchFeed(string url) =>
+            url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("/rss/search", StringComparison.OrdinalIgnoreCase);
 
         private static string SourceNameFor(string url)
         {
@@ -525,14 +581,15 @@ namespace COMS_MVC.Services
         }
 
         private async Task<(List<FloodNewsArticle> Articles, bool Ok)> FetchPhilippineNewsAsync(
-            string feedUrl, string sourceName, CancellationToken ct)
+            FeedSource feed, CancellationToken ct)
         {
             var articles = new List<FloodNewsArticle>();
+            var sourceName = feed.SourceName;
 
             string xml;
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, feedUrl);
+                using var request = new HttpRequestMessage(HttpMethod.Get, feed.Url);
                 using var response = await _http.SendAsync(request, ct);
                 if (!response.IsSuccessStatusCode)
                 {
@@ -564,12 +621,27 @@ namespace COMS_MVC.Services
 
             foreach (var item in doc.Descendants("item"))
             {
-                var title = CleanText((string?)item.Element("title"));
+                var rawTitle = CleanText((string?)item.Element("title"));
                 var link = CleanUrl((string?)item.Element("link"));
-                if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(link))
+                if (string.IsNullOrEmpty(rawTitle) || string.IsNullOrEmpty(link))
                 {
                     continue;
                 }
+
+                // Publisher attribution. Aggregated feeds (Google News) carry
+                // the real outlet in <source url="...">; standard publisher
+                // feeds are attributed to the feed itself.
+                var publisherUrl = (string?)item.Element("source")?.Attribute("url");
+                var publisherName = CleanText((string?)item.Element("source"));
+                if (string.IsNullOrWhiteSpace(publisherName))
+                {
+                    publisherName = PublisherFromTitle(rawTitle) ?? sourceName;
+                }
+                if (IsBlockedPublisher(publisherName, publisherUrl))
+                {
+                    continue;
+                }
+                var title = StripPublisherSuffix(rawTitle, publisherName);
 
                 // Some publishers (e.g. SunStar) leave <description/> empty and
                 // put the body in content:encoded; categories often carry the
@@ -587,31 +659,38 @@ namespace COMS_MVC.Services
                 // article's own content only.
                 var matchText = StripLinkBoilerplate(fullText);
                 var placeText = matchText + "\n" + CategoryText(item);
-                var snippet = Snippetize(string.IsNullOrWhiteSpace(bodyText)
-                    ? (string?)item.Element(ContentNamespace + "encoded")
-                    : bodyText);
+                var snippet = CleanSnippet(
+                    Snippetize(string.IsNullOrWhiteSpace(bodyText)
+                        ? (string?)item.Element(ContentNamespace + "encoded")
+                        : bodyText),
+                    title, publisherName);
                 var haystack = title + "\n" + matchText;
-                // Strict relevance gate: flooding must be the primary subject
-                // or a substantial part — rain/storm/government mentions alone
-                // never qualify. Applied before save/cache/count/display.
+                // Strict relevance gate: flooding/drainage must be the primary
+                // subject or a substantial part — rain/storm/government mentions
+                // alone never qualify. Applied before save/cache/count/display.
                 if (!FloodRelevance.IsRelevant(title, matchText))
                 {
                     continue;
                 }
 
-                // PHILIPPINES-ONLY gate (both filters must pass together):
-                // a specific PH place anchors the story; otherwise an explicit
-                // country mention is required AND foreign locations must not
-                // dominate (foreign floods / incidental roundup mentions out).
-                // Never inferred from the publisher; tags only from article text.
+                // PHILIPPINES-ONLY gate: a specific PH place anchors the story;
+                // otherwise an explicit country mention is required AND foreign
+                // locations must not dominate. For a Philippines-scoped search
+                // feed, a recognised PH news organisation is also an acceptable
+                // anchor (the query itself is PH-scoped and the outlet is a
+                // vetted newsroom). Tags only from article text.
                 var areas = DetectAreas(title + "\n" + placeText);
                 var specificAnchor = areas.Any(a =>
                     !a.Equals("Philippines", StringComparison.OrdinalIgnoreCase) &&
                     !a.Equals("Philippine", StringComparison.OrdinalIgnoreCase));
                 if (!specificAnchor)
                 {
-                    if (!MentionsPhilippines(haystack)
-                        || !FloodRelevance.HasPhilippineFocus(title + "\n" + placeText))
+                    var explicitCountry = MentionsPhilippines(haystack)
+                        && FloodRelevance.HasPhilippineFocus(title + "\n" + placeText);
+                    var trustedPublisher = feed.IsSearchFeed
+                        && IsKnownPhPublisher(publisherName, publisherUrl)
+                        && !FloodRelevance.HasForeignLocationContext(title + "\n" + placeText);
+                    if (!explicitCountry && !trustedPublisher)
                     {
                         continue;
                     }
@@ -621,7 +700,7 @@ namespace COMS_MVC.Services
                 articles.Add(new FloodNewsArticle
                 {
                     Title = title,
-                    Source = sourceName,
+                    Source = publisherName,
                     PublishedAt = ParseDate((string?)item.Element("pubDate")),
                     Url = link,
                     Snippet = snippet,
@@ -630,6 +709,81 @@ namespace COMS_MVC.Services
                 });
             }
             return (articles, true);
+        }
+
+        /// <summary>
+        /// Social networks, video platforms, and self-publishing blogs are
+        /// rejected outright: COMS shows verified newsroom coverage only.
+        /// </summary>
+        private static bool IsBlockedPublisher(string? name, string? url)
+        {
+            var value = (name ?? string.Empty).Trim().ToLowerInvariant();
+            if (value.Length > 0 && BlockedPublishers.Contains(value))
+            {
+                return true;
+            }
+            var host = HostOf(url);
+            if (host.Length == 0)
+            {
+                return false;
+            }
+            return BlockedPublishers.Any(b =>
+                host.Equals(b + ".com", StringComparison.OrdinalIgnoreCase)
+                || host.StartsWith(b + ".", StringComparison.OrdinalIgnoreCase)
+                || host.Contains("." + b + ".", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsKnownPhPublisher(string? name, string? url)
+        {
+            var value = ((name ?? string.Empty) + " " + HostOf(url)).ToLowerInvariant();
+            return value.Length > 1 && KnownPhPublisherMarkers.Any(m => value.Contains(m));
+        }
+
+        private static string HostOf(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return string.Empty;
+            }
+            return Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
+                ? uri.Host.ToLowerInvariant()
+                : string.Empty;
+        }
+
+        /// <summary>
+        /// Google News titles end with " - Publisher". Remove that suffix so the
+        /// displayed headline is the outlet's own wording.
+        /// </summary>
+        private static string StripPublisherSuffix(string title, string? publisher)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return string.Empty;
+            }
+            var p = (publisher ?? string.Empty).Trim();
+            if (p.Length > 0)
+            {
+                foreach (var suffix in new[] { " - " + p, " – " + p, " — " + p, " | " + p })
+                {
+                    if (title.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return title[..^suffix.Length].Trim();
+                    }
+                }
+            }
+            return title;
+        }
+
+        /// <summary>Publisher inferred from a trailing " - Publisher" segment.</summary>
+        private static string? PublisherFromTitle(string title)
+        {
+            var index = title.LastIndexOf(" - ", StringComparison.Ordinal);
+            if (index <= 10 || index >= title.Length - 2)
+            {
+                return null;
+            }
+            var candidate = title[(index + 3)..].Trim();
+            return candidate.Length is > 1 and <= 60 ? candidate : null;
         }
 
         private static readonly XNamespace ContentNamespace = "http://purl.org/rss/1.0/modules/content/";
@@ -691,6 +845,7 @@ namespace COMS_MVC.Services
             // different providers so counts are never inflated.
             var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var acceptedTokenSets = new List<HashSet<string>>();
             var result = new List<FloodNewsArticle>();
             foreach (var article in articles)
             {
@@ -706,10 +861,89 @@ namespace COMS_MVC.Services
                 {
                     continue;
                 }
+
+                // Same story, reworded by another outlet (wire copy, "DOJ
+                // recovers..." vs "P866M reclaimed..."): high title-token
+                // overlap counts as a duplicate so counts are never inflated.
+                var tokens = TitleTokens(article.Title);
+                if (tokens.Count >= 4 && acceptedTokenSets.Any(s => Jaccard(s, tokens) >= 0.8))
+                {
+                    continue;
+                }
+                acceptedTokenSets.Add(tokens);
+
                 seenTitles.Add(titleKey);
                 result.Add(article);
             }
             return result;
+        }
+
+        /// <summary>
+        /// Aggregator descriptions are sometimes just "Headline Publisher".
+        /// Displaying that as a summary is noise, so a snippet that merely
+        /// repeats the headline (or the headline with the outlet appended) is
+        /// dropped and the card shows no summary instead.
+        /// </summary>
+        private static string CleanSnippet(string snippet, string title, string? publisher)
+        {
+            var s = (snippet ?? string.Empty).Trim();
+            if (s.Length == 0)
+            {
+                return s;
+            }
+            var p = (publisher ?? string.Empty).Trim();
+            if (p.Length > 0)
+            {
+                foreach (var suffix in new[] { " " + p, " - " + p, " | " + p })
+                {
+                    if (s.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        s = s[..^suffix.Length].Trim();
+                        break;
+                    }
+                }
+            }
+            var sNorm = Regex.Replace(s.ToLowerInvariant(), @"[^a-z0-9]+", "");
+            var tNorm = Regex.Replace((title ?? string.Empty).ToLowerInvariant(), @"[^a-z0-9]+", "");
+            if (sNorm.Length == 0)
+            {
+                return string.Empty;
+            }
+            if ((tNorm.Length > 0 && (sNorm.StartsWith(tNorm, StringComparison.Ordinal)
+                    || tNorm.StartsWith(sNorm, StringComparison.Ordinal)))
+                || Jaccard(TitleTokens(s), TitleTokens(title)) >= 0.6)
+            {
+                return string.Empty;
+            }
+            return s;
+        }
+
+        private static readonly HashSet<string> TitleStopWords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "the", "a", "an", "of", "in", "on", "for", "and", "to", "at", "as",
+            "by", "with", "from", "after", "over", "new", "says", "say", "its"
+        };
+
+        private static HashSet<string> TitleTokens(string title)
+        {
+            return Regex.Matches((title ?? string.Empty).ToLowerInvariant(), @"[a-z0-9]+")
+                .Select(m => m.Value)
+                .Where(t => t.Length > 2 && !TitleStopWords.Contains(t))
+                // Light singularization so "project"/"projects" and
+                // "flood"/"floods" are compared as the same token.
+                .Select(t => t.Length > 3 && t.EndsWith('s') ? t[..^1] : t)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static double Jaccard(HashSet<string> a, HashSet<string> b)
+        {
+            if (a.Count == 0 || b.Count == 0)
+            {
+                return 0;
+            }
+            var intersection = a.Count(b.Contains);
+            var union = a.Count + b.Count - intersection;
+            return union == 0 ? 0 : intersection / (double)union;
         }
 
         private static FloodNewsTrends BuildTrends(List<FloodNewsArticle> articles)

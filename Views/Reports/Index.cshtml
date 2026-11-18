@@ -3,12 +3,19 @@
 @{
     ViewData["Title"] = "Community Reports";
     ViewData["PageTitle"] = "Community Reports";
+    var statusCounts = ViewBag.StatusCounts as Dictionary<string, int> ?? new Dictionary<string, int>();
+    var page = (int)(ViewBag.Page ?? 1);
+    var totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var totalCount = (int)(ViewBag.TotalCount ?? 0);
+    var currentStatus = (string?)ViewBag.CurrentStatus;
+    var currentType = (string?)ViewBag.CurrentType;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">
-        <i class="bi bi-journal-text me-2 text-warning"></i>Community Reports
-    </h1>
+<div class="page-head">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-journal-text me-2 page-icon"></i>Community Reports</h1>
+        <p class="page-sub">@totalCount report(s) · investigate, verify, and update canal obstruction reports.</p>
+    </div>
     @if (User.IsInRole("Resident"))
     {
         <a asp-action="Create" class="btn btn-primary">
@@ -17,71 +24,107 @@
     }
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>#</th>
-                        <th>Canal</th>
-                        <th>Title</th>
-                        <th>Type</th>
-                        <th>Submitted By</th>
-                        <th>Status</th>
-                        <th>Date</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (Model.Any())
+<div class="row g-2 mb-3">
+    @foreach (var key in new[] { "Pending", "Under Review", "Verified", "In Progress", "Resolved", "Rejected" })
+    {
+        var count = statusCounts.TryGetValue(key, out var c) ? c : 0;
+        <div class="col-6 col-md-4 col-xl-2">
+            <a class="card stat-card text-decoration-none h-100 @(string.Equals(currentStatus, key, StringComparison.OrdinalIgnoreCase) ? "border-primary" : "")"
+               asp-action="Index" asp-route-status="@key">
+                <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                    <span class="stat-label mb-0">@key</span>
+                    <span class="fs-5 fw-bold">@count</span>
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+<div class="card table-card mb-3">
+    <div class="card-body py-3">
+        <form method="get" asp-action="Index" class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label" for="statusFilter">Status</label>
+                <select id="statusFilter" name="status" class="form-select form-select-sm" asp-items="ViewBag.ReportStatuses">
+                    <option value="">All statuses</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label" for="typeFilter">Report type</label>
+                <select id="typeFilter" name="type" class="form-select form-select-sm" asp-items="ViewBag.ReportTypes">
+                    <option value="">All types</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-funnel me-1"></i>Apply filters
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card table-card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Canal</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Submitted By</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Any())
+                {
+                    var rowNumber = (page - 1) * 20;
+                    @foreach (var report in Model)
                     {
-                        // Display-only sequential row numbers (1, 2, 3, …).
-                        // The database primary key is intentionally NOT shown
-                        // here; Details links still route by CommunityReportId.
-                        var rowNumber = 0;
-                        @foreach (var report in Model)
-                        {
-                            rowNumber++;
-                            <tr>
-                                <td class="small">@rowNumber</td>
-                                <td class="fw-medium">@report.Canal?.CanalName</td>
-                                <td>@report.Title</td>
-                                <td class="small">@report.ReportType</td>
-                                <td class="small">@report.User?.FullName</td>
-                                <td>
-                                    @{
-                                        var statusClass = report.Status switch
-                                        {
-                                            "Resolved" => "success",
-                                            "In Progress" => "warning",
-                                            "Pending" => "secondary",
-                                            "Verified" => "info",
-                                            "Rejected" => "danger",
-                                            _ => "light text-dark"
-                                        };
-                                    }
-                                    <span class="badge bg-@statusClass">@report.Status</span>
-                                </td>
-                                <td class="small text-muted"><time data-utc="@PhTime.AsUtc(report.CreatedAt).ToString("o")" title="@PhTime.ToPhString(report.CreatedAt) (Philippine time)">@PhTime.ToRelative(report.CreatedAt)</time></td>
-                                <td>
-                                    <a asp-action="Details" asp-route-id="@report.CommunityReportId" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                        }
-                    }
-                    else
-                    {
+                        rowNumber++;
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
-                                <i class="bi bi-journal-text me-2"></i>No reports found.
+                            <td class="small text-muted">@rowNumber</td>
+                            <td class="fw-medium">@(report.Canal?.CanalName ?? "—")</td>
+                            <td class="text-break">@report.Title</td>
+                            <td class="small">@report.ReportType</td>
+                            <td class="small">@report.User?.FullName</td>
+                            <td>@Html.StatusBadge(report.Status)</td>
+                            <td class="small text-muted"><time data-utc="@PhTime.AsUtc(report.CreatedAt).ToString("o")" title="@PhTime.ToPhString(report.CreatedAt) (Philippine time)">@PhTime.ToRelative(report.CreatedAt)</time></td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@report.CommunityReportId" class="btn btn-sm btn-outline-primary" title="View report" aria-label="View report">
+                                    <i class="bi bi-eye"></i>
+                                </a>
                             </td>
                         </tr>
                     }
-                </tbody>
-            </table>
-        </div>
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="8">
+                            <partial name="_EmptyState" model="@(new EmptyStateViewModel {
+                                Icon = "bi-journal-text",
+                                Title = "No reports match these filters",
+                                Message = "Try a different status or report type. New resident reports appear here automatically."
+                            })" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     </div>
+    <partial name="_Pagination" model="@(new PaginationViewModel {
+        Page = page, TotalPages = totalPages, TotalCount = totalCount,
+        Action = "Index", Controller = "Reports", Label = "reports",
+        RouteValues = new Dictionary<string, string> {
+            { "status", currentStatus ?? string.Empty },
+            { "type", currentType ?? string.Empty }
+        }
+    })" />
 </div>
+

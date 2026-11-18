@@ -236,7 +236,11 @@ namespace COMS_MVC.Controllers
                     new[] { "CustomerService", "Admin" },
                     "New support ticket",
                     $"Ticket #{ticket.SupportTicketId}: '{ticket.Subject}'.",
-                    "Support");
+                    "Support",
+                    null,
+                    null,
+                    NotificationLinks.SupportTicket,
+                    ticket.SupportTicketId);
             }
             catch
             {
@@ -345,7 +349,11 @@ namespace COMS_MVC.Controllers
                     new[] { "CustomerService", "Admin" },
                     "New support message",
                     $"Resident reply on ticket #{ticket.SupportTicketId}: '{ticket.Subject}'.",
-                    "Support");
+                    "Support",
+                    null,
+                    null,
+                    NotificationLinks.SupportTicket,
+                    ticket.SupportTicketId);
             }
             catch
             {
@@ -702,7 +710,11 @@ namespace COMS_MVC.Controllers
                 await _notifications.CreateNotificationAsync(ticket.UserId,
                     "Customer Service replied",
                     $"Reply on '{ticket.Subject}'.",
-                    "Support");
+                    "Support",
+                    null,
+                    null,
+                    NotificationLinks.SupportTicket,
+                    ticket.SupportTicketId);
             }
             catch
             {
@@ -767,7 +779,11 @@ namespace COMS_MVC.Controllers
                     await _notifications.CreateNotificationAsync(ticket.UserId,
                         $"Support ticket {status.ToLower()}",
                         $"Ticket #{ticket.SupportTicketId}: '{ticket.Subject}'.",
-                        "Support");
+                        "Support",
+                        null,
+                        null,
+                        NotificationLinks.SupportTicket,
+                        ticket.SupportTicketId);
                 }
                 catch
                 {
@@ -902,7 +918,11 @@ namespace COMS_MVC.Controllers
                 await _notifications.CreateNotificationAsync(ticket.UserId,
                     "Support ticket closed",
                     $"Ticket #{ticket.SupportTicketId}: '{ticket.Subject}'.",
-                    "Support");
+                    "Support",
+                    null,
+                    null,
+                    NotificationLinks.SupportTicket,
+                    ticket.SupportTicketId);
             }
             catch
             {

@@ -30,10 +30,20 @@ namespace COMS_MVC.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? q = null, string? role = null, int page = 1)
         {
             // Batched role lookup: 2 queries total instead of one per user (N+1).
-            var users = await _userManager.Users.ToListAsync();
+            var usersQuery = _userManager.Users.AsNoTracking();
+            q = (q ?? string.Empty).Trim();
+            if (q.Length > 0)
+            {
+                var like = $"%{q}%";
+                usersQuery = usersQuery.Where(u =>
+                    EF.Functions.ILike(u.UserName ?? string.Empty, like)
+                    || EF.Functions.ILike(u.FullName ?? string.Empty, like)
+                    || EF.Functions.ILike(u.Email ?? string.Empty, like));
+            }
+            var users = await usersQuery.ToListAsync();
             var userIds = users.Select(u => u.Id).ToList();
             var userRolePairs = await _context.Set<IdentityUserRole<int>>()
                 .AsNoTracking()
@@ -66,7 +76,36 @@ namespace COMS_MVC.Controllers
                 });
             }
 
-            return View(userRoles);
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                userRoles = userRoles
+                    .Where(u => u.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            const int pageSize = 25;
+            page = Math.Max(1, page);
+            var total = userRoles.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+            page = Math.Min(page, totalPages);
+            var paged = userRoles
+                .OrderBy(u => u.FullName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            ViewBag.Query = q;
+            ViewBag.CurrentRole = role;
+            ViewBag.Page = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalCount = total;
+            ViewBag.Roles = roleNamesById.Values
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Select(n => n!)
+                .OrderBy(n => n)
+                .ToList();
+
+            return View(paged);
         }
 
         /// <summary>

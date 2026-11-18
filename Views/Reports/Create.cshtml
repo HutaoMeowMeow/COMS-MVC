@@ -1,4 +1,4 @@
-@model CommunityReportFormViewModel
+﻿@model CommunityReportFormViewModel
 @{
     ViewData["Title"] = "Report an Issue";
     ViewData["PageTitle"] = "Report Canal Problem";
@@ -14,6 +14,47 @@
     </a>
 </div>
 
+@if (ViewBag.DraftRestored == true)
+{
+    <div class="alert alert-info d-flex align-items-start gap-2" role="status">
+        <i class="bi bi-clock-history mt-1" aria-hidden="true"></i>
+        <div>
+            <strong>Draft restored.</strong>
+            We recovered your unfinished report@(Model.DraftSavedAt.HasValue ? $" from {COMS_MVC.Helpers.PhTime.ToPhString(Model.DraftSavedAt.Value)}" : "").
+            Continue where you left off and submit when ready.
+        </div>
+    </div>
+}
+
+<div class="draft-bar">
+    <div class="draft-status" id="draftStatus" data-state="idle" role="status" aria-live="polite">
+        <i class="bi bi-cloud-check" aria-hidden="true"></i>
+        <span id="draftStatusText">
+            @if (Model.DraftSavedAt.HasValue)
+            {
+                <text>Draft saved · @COMS_MVC.Helpers.PhTime.ToPhString(Model.DraftSavedAt.Value)</text>
+            }
+            else
+            {
+                <text>Drafts save automatically while you type.</text>
+            }
+        </span>
+    </div>
+    @if (Model.DraftSavedAt.HasValue)
+    {
+        <form asp-action="DeleteDraft" method="post" class="d-inline" data-confirm="true"
+              data-confirm-title="Delete this draft?"
+              data-confirm-message="Your saved draft and its photo will be removed. Submitted reports are not affected."
+              data-confirm-destructive="true">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@Url.Action("Create")" />
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>Delete draft
+            </button>
+        </form>
+    }
+</div>
+
 <div class="step-indicator" aria-hidden="true">
     <div class="step is-active"><span class="step-num">1</span><span class="step-text">Problem<small>What &amp; where</small></span></div>
     <div class="step"><span class="step-num">2</span><span class="step-text">Details<small>Describe &amp; photo</small></span></div>
@@ -21,8 +62,12 @@
     <div class="step"><span class="step-num">4</span><span class="step-text">Submit<small>Send to LGU</small></span></div>
 </div>
 
-<form asp-action="Create" enctype="multipart/form-data" method="post" id="reportForm">
+<form asp-action="Create" enctype="multipart/form-data" method="post" id="reportForm"
+      data-draft-autosave-url="@Url.Action("SaveDraft")"
+      data-draft-saved-at="@(Model.DraftSavedAt?.ToString("o"))"
+      data-draft-has-photo="@((!string.IsNullOrEmpty(Model.DraftPhotoPath)).ToString().ToLowerInvariant())">
     @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="SubmissionId" />
     @if (Model.CanalId.HasValue)
     {
         @Html.HiddenFor(m => m.CanalId)
@@ -75,8 +120,22 @@
                 <label asp-for="Photo" class="form-label"></label>
                 <input asp-for="Photo" class="form-control" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" id="photoInput" />
                 <span asp-validation-for="Photo" class="text-danger small"></span>
-                <div class="form-text">Optional — JPG, JPEG or PNG only, max 5MB. Accepted formats: JPG, JPEG, PNG only. GIFs and videos are not allowed. Photos are checked automatically: they must clearly show a canal, drainage, flood, or related condition.</div>
+                <div class="form-text">Optional — JPG, JPEG, or PNG only, max 5MB. GIFs and videos are not allowed. Photos are checked automatically and must clearly show a canal, drainage, flood, or related condition.</div>
                 <div class="form-text text-danger d-none" id="photoClientError" role="alert"></div>
+                @if (!string.IsNullOrEmpty(Model.DraftPhotoPath))
+                {
+                    <div class="draft-photo" id="draftPhotoSaved">
+                        <img src="@(Url.Action("DraftPhoto", "Reports", new { v = Model.DraftSavedAt?.Ticks }))" alt="Photo saved with your draft" class="draft-photo-thumb" />
+                        <div class="min-w-0">
+                            <div class="small fw-medium text-truncate">@(Model.DraftPhotoFileName ?? "Saved draft photo")</div>
+                            <div class="form-text mb-1">This photo is saved with your draft and will be attached when you submit.</div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="removePhoto" value="true" id="removeDraftPhoto" />
+                                <label class="form-check-label small" for="removeDraftPhoto">Remove saved photo</label>
+                            </div>
+                        </div>
+                    </div>
+                }
                 <div class="mt-2 d-none" id="photoPreviewWrap">
                     <img id="photoPreview" class="img-fluid rounded border" style="max-height: 220px;" alt="Photo preview" />
                 </div>
@@ -135,19 +194,26 @@
             </div>
         </div>
         <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <a asp-action="MyReports" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i>Cancel
-            </a>
+        <a asp-action="MyReports" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="submit" class="btn btn-outline-primary btn-lg" id="saveDraftBtn"
+                    formaction="@Url.Action("SaveDraft")" formmethod="post" formenctype="multipart/form-data" formnovalidate>
+                <i class="bi bi-save me-1"></i>Save as Draft
+            </button>
             <button type="submit" class="btn btn-success btn-lg px-4" id="submitReportBtn" data-loading>
                 <span class="btn-label"><i class="bi bi-send me-1"></i>Submit Report</span>
                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
             </button>
         </div>
+    </div>
     </section>
 </form>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/report-draft.js" asp-append-version="true"></script>
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -439,3 +505,6 @@
         });
     </script>
 }
+
+
+

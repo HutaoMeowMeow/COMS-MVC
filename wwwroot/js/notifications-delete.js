@@ -125,7 +125,7 @@
                 .catch(function () {
                     showToast('error', 'Connection error', 'Could not delete the notification. Please try again.');
                 });
-        }
+        });
     }
 
     if (document.readyState === 'loading') {

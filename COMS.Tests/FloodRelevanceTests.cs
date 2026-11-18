@@ -166,6 +166,41 @@ public sealed class FloodRelevanceTests
     }
 
     [Fact]
+    public void FloodControlFundScandal_WithoutFloodEvent_IsRejected()
+    {
+        Assert.False(FloodRelevance.IsRelevant(
+            "DOJ recovers P866 million from flood control scam so far",
+            "The Department of Justice said it has recovered P866 million in flood " +
+            "control funds tied to anomalous projects. Prosecutors filed charges " +
+            "against several officials."));
+    }
+
+    [Fact]
+    public void FloodControlCourtCase_WithoutFloodEvent_IsRejected()
+    {
+        Assert.False(FloodRelevance.IsRelevant(
+            "Sandiganbayan rejects bid to dismiss P92-M flood control case",
+            "The anti-graft court denied the motion of a former senator to dismiss " +
+            "the P92-million flood control case against him."));
+    }
+
+    [Fact]
+    public void PreventionProject_IsLabelledPrevention_NotIncident()
+    {
+        Assert.Equal("Prevention", FloodRelevance.TopicLabel(
+            "DPWH completes flood control project in Cebu",
+            "The new drainage and embankment works aim to prevent urban flooding."));
+    }
+
+    [Fact]
+    public void FloodEvent_IsLabelledReport()
+    {
+        Assert.Equal("Report", FloodRelevance.TopicLabel(
+            "Flash floods hit Cebu City villages",
+            "Rescue teams evacuated stranded families as floodwaters rose waist-deep."));
+    }
+
+    [Fact]
     public void PhilippineFocus_RejectsForeignFloodWithIncidentalPhilippinesMentions()
     {
         Assert.False(FloodRelevance.HasPhilippineFocus(

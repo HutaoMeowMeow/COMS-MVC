@@ -5,10 +5,11 @@
     ViewData["PageTitle"] = "Announcements";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h1 class="h3 mb-0">
-        <i class="bi bi-megaphone me-2"></i>Announcements
-    </h1>
+<div class="page-head">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-megaphone me-2 page-icon"></i>Announcements</h1>
+        <p class="page-sub">Official advisories and updates published to COMS users.</p>
+    </div>
     <div class="d-flex gap-2 flex-wrap">
         @if (User.IsInRole("Admin") || User.IsInRole("LGU"))
         {
@@ -75,17 +76,14 @@
     {
         <div class="col-12">
             <div class="card border-0 shadow-sm">
-                <div class="card-body text-center py-5">
-                    <i class="bi bi-megaphone display-1 text-muted mb-3"></i>
-                    <h4 class="text-muted">No Announcements</h4>
-                    <p class="text-muted">No announcements have been posted yet.</p>
-                    @if (User.IsInRole("Admin") || User.IsInRole("LGU"))
-                    {
-                        <a asp-action="Create" class="btn btn-primary">
-                            <i class="bi bi-plus-lg me-1"></i>Create Announcement
-                        </a>
-                    }
-                </div>
+                <partial name="_EmptyState" model="@(new EmptyStateViewModel {
+                    Icon = "bi-megaphone",
+                    Title = "No announcements yet",
+                    Message = "Published advisories and flood-prevention updates will appear here.",
+                    ActionText = (User.IsInRole("Admin") || User.IsInRole("LGU")) ? "Create Announcement" : null,
+                    ActionController = "Announcements",
+                    ActionName = (User.IsInRole("Admin") || User.IsInRole("LGU")) ? "Create" : null
+                })" />
             </div>
         </div>
     }
@@ -122,3 +120,4 @@
         </div>
     </div>
 }
+

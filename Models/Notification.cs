@@ -30,6 +30,20 @@ namespace COMS_MVC.Models
         [Display(Name = "Related Report")]
         public int? RelatedReportId { get; set; }
 
+        /// <summary>
+        /// Structured reference to the record this notification is about.
+        /// Use with <see cref="EntityId"/> to build a reliable server-side
+        /// destination (Report, Alert, SupportTicket, Announcement).
+        /// Null on older rows; those fall back to the typed foreign keys above.
+        /// </summary>
+        [Display(Name = "Related Item Type")]
+        [StringLength(50, ErrorMessage = "Related item type cannot exceed 50 characters")]
+        public string? EntityType { get; set; }
+
+        /// <summary>Primary key of the related record, scoped by EntityType.</summary>
+        [Display(Name = "Related Item")]
+        public int? EntityId { get; set; }
+
         [Display(Name = "Is Read")]
         public bool IsRead { get; set; } = false;
 

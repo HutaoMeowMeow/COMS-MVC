@@ -144,7 +144,11 @@ namespace COMS_MVC.Hubs
                     await _notifications.CreateNotificationAsync(ticket.UserId,
                         "Customer Service replied",
                         $"Reply on '{ticket.Subject}'.",
-                        "Support");
+                        "Support",
+                        null,
+                        null,
+                        COMS_MVC.Helpers.NotificationLinks.SupportTicket,
+                        ticket.SupportTicketId);
                 }
                 else
                 {
@@ -152,7 +156,11 @@ namespace COMS_MVC.Hubs
                         new[] { "CustomerService", "Admin" },
                         "New support message",
                         $"Resident reply on ticket #{ticket.SupportTicketId}: '{ticket.Subject}'.",
-                        "Support");
+                        "Support",
+                        null,
+                        null,
+                        COMS_MVC.Helpers.NotificationLinks.SupportTicket,
+                        ticket.SupportTicketId);
                 }
             }
             catch

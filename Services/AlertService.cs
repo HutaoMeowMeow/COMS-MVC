@@ -266,7 +266,9 @@ namespace COMS_MVC.Services
                     alert.Description,
                     "Alert",
                     alert.ObstructionAlertId,
-                    null);
+                    null,
+                    COMS_MVC.Helpers.NotificationLinks.Alert,
+                    alert.ObstructionAlertId);
             }
 
             var maintenanceUsers = await _userManager.GetUsersInRoleAsync("Maintenance");
@@ -278,7 +280,9 @@ namespace COMS_MVC.Services
                     $"A {alert.Severity.ToLower()} obstruction alert requires your attention.",
                     "Maintenance",
                     alert.ObstructionAlertId,
-                    null);
+                    null,
+                    COMS_MVC.Helpers.NotificationLinks.Alert,
+                    alert.ObstructionAlertId);
             }
 
             // Dataless refresh ping only (per-user endpoints enforce
@@ -348,7 +352,9 @@ namespace COMS_MVC.Services
                     $"Alert \"{alert.Title}\" status updated to {status}.",
                     "Alert",
                     alert.ObstructionAlertId,
-                    null);
+                    null,
+                    COMS_MVC.Helpers.NotificationLinks.Alert,
+                    alert.ObstructionAlertId);
             }
 
             return true;

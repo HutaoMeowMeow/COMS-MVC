@@ -405,6 +405,13 @@ namespace COMS_MVC.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("EntityId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<bool>("IsRead")
                         .HasColumnType("boolean");
 
@@ -438,7 +445,13 @@ namespace COMS_MVC.Migrations
 
                     b.HasIndex("RelatedReportId");
 
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
                     b.HasIndex("UserId", "IsRead");
+
+                    b.HasIndex("UserId", "IsRead", "CreatedAt");
 
                     b.ToTable("Notifications");
                 });
@@ -603,6 +616,70 @@ namespace COMS_MVC.Migrations
                         .IsUnique();
 
                     b.ToTable("PendingRegistrations");
+                });
+
+            modelBuilder.Entity("COMS_MVC.Models.ReportDraft", b =>
+                {
+                    b.Property<int>("ReportDraftId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ReportDraftId"));
+
+                    b.Property<int?>("CanalId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("PhotoFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("PhotoPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ReportType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ReportDraftId");
+
+                    b.HasIndex("CanalId");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("ReportDrafts");
                 });
 
             modelBuilder.Entity("COMS_MVC.Models.Sensor", b =>
@@ -1070,6 +1147,24 @@ namespace COMS_MVC.Migrations
                     b.Navigation("Canal");
 
                     b.Navigation("SensorReading");
+                });
+
+            modelBuilder.Entity("COMS_MVC.Models.ReportDraft", b =>
+                {
+                    b.HasOne("COMS_MVC.Models.Canal", "Canal")
+                        .WithMany()
+                        .HasForeignKey("CanalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("COMS_MVC.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Canal");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("COMS_MVC.Models.Sensor", b =>

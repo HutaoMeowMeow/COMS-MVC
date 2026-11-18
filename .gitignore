@@ -26,3 +26,7 @@ cookies.txt
 .DS_Store
 Thumbs.db
 .aider*
+
+# User-generated uploads (never commit photos)
+App_Data/
+wwwroot/uploads/

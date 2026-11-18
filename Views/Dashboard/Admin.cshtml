@@ -1,16 +1,15 @@
-@model DashboardViewModel
+﻿@model DashboardViewModel
 @{
     ViewData["Title"] = "Admin Dashboard";
     ViewData["PageTitle"] = "System Management Dashboard";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">
-        <i class="bi bi-speedometer2 me-2"></i>System Management Dashboard
-    </h1>
+<div class="page-head">
     <div>
-        <span class="badge bg-primary-subtle text-primary fs-6">@Model.CurrentRole</span>
+        <h1 class="h3 mb-0"><i class="bi bi-speedometer2 me-2 page-icon"></i>System Management Dashboard</h1>
+        <p class="page-sub">Whole-of-system view: canals, sensors, flood risk, reports, and announcements.</p>
     </div>
+    <span class="badge bg-primary-subtle text-primary fs-6">@Model.CurrentRole</span>
 </div>
 
 <partial name="_DashboardSummary" model="Model" />
@@ -41,16 +40,13 @@
                                 {
                                     <tr>
                                         <td>
-                                            <span class="badge bg-@SeverityStyles.BadgeClass(alert.Severity)">@alert.Severity</span>
+                                            @Html.SeverityBadge(alert.Severity)
                                         </td>
                                         <td>@alert.Canal?.CanalName</td>
                                         <td class="fw-medium">@alert.Title</td>
-                                        <td class="small text-muted">@{
-                                                var timeAgo = DateTime.UtcNow - alert.DetectedAt;
-                                                @($"{timeAgo.TotalMinutes:F0} min ago")
-                                            }</td>
+                                        <td class="small text-muted"><time data-utc="@COMS_MVC.Helpers.PhTime.AsUtc(alert.DetectedAt).ToString("o")" title="@COMS_MVC.Helpers.PhTime.ToPhString(alert.DetectedAt) (Philippine time)">@COMS_MVC.Helpers.PhTime.ToRelative(alert.DetectedAt)</time></td>
                                         <td>
-                                            <span class="badge bg-secondary">@alert.Status</span>
+                                            @Html.StatusBadge(alert.Status)
                                         </td>
                                     </tr>
                                 }
@@ -60,9 +56,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">
-                        <i class="bi bi-check-circle-fill me-2"></i>No recent alerts
-                    </p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-check-circle", Title = "No recent alerts", Message = "All monitored canals are within their normal range." })" />
                 }
             </div>
         </div>
@@ -92,13 +86,10 @@
                                 @foreach (var report in Model.RecentReports)
                                 {
                                     <tr>
-                                        <td>@report.Canal?.CanalName</td>
+                                        <td>@(report.Canal?.CanalName ?? "—")</td>
                                         <td class="fw-medium">@report.Title</td>
                                         <td class="small">@report.ReportType</td>
-                                        <td class="small text-muted">@{
-                                                var timeAgo = DateTime.UtcNow - report.CreatedAt;
-                                                @($"{timeAgo.TotalMinutes:F0} min ago")
-                                            }</td>
+                                        <td class="small text-muted"><time data-utc="@COMS_MVC.Helpers.PhTime.AsUtc(report.CreatedAt).ToString("o")" title="@COMS_MVC.Helpers.PhTime.ToPhString(report.CreatedAt) (Philippine time)">@COMS_MVC.Helpers.PhTime.ToRelative(report.CreatedAt)</time></td>
                                         <td>
                                             @{
                                                 var statusClass = report.Status switch
@@ -110,7 +101,7 @@
                                                     _ => "info"
                                                 };
                                             }
-                                            <span class="badge bg-@statusClass">@report.Status</span>
+                                            @Html.StatusBadge(report.Status)
                                         </td>
                                     </tr>
                                 }
@@ -120,9 +111,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">
-                        <i class="bi bi-check-circle-fill me-2"></i>No recent reports
-                    </p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-journal-check", Title = "No recent reports", Message = "New resident reports will appear here for review." })" />
                 }
             </div>
         </div>
@@ -165,7 +154,7 @@
                                                     _ => "secondary"
                                                 };
                                             }
-                                            <span class="badge bg-@statusColor">@canal.Status</span>
+                                            @Html.StatusBadge(canal.Status)
                                         </td>
                                         <td class="small text-muted">@canal.Sensors.Count(s => s.Status == "Online") online</td>
                                     </tr>
@@ -176,7 +165,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">No canals registered.</p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-water", Title = "No canals registered", Message = "Add a canal to begin monitoring.", ActionText = "Manage Canals", ActionController = "Canals", ActionName = "Index" })" />
                 }
             </div>
         </div>
@@ -214,20 +203,8 @@
                                                 <span class="small">@risk.RiskScore</span>
                                             </div>
                                         </td>
-                                        <td>@{
-                                                var riskColor = risk.RiskLevel switch
-                                                {
-                                                    "Critical" => "danger",
-                                                    "High" => "warning",
-                                                    "Moderate" => "info",
-                                                    _ => "success"
-                                                };
-                                            }
-                                            <span class="badge bg-@riskColor">@risk.RiskLevel</span></td>
-                                        <td class="small text-muted">@{
-                                                var timeAgo = DateTime.UtcNow - risk.AssessmentDate;
-                                                @($"{timeAgo.TotalHours:F0}h ago")
-                                            }</td>
+                                        <td>@Html.StatusBadge(risk.RiskLevel)</td>
+                                        <td class="small text-muted"><time data-utc="@COMS_MVC.Helpers.PhTime.AsUtc(risk.AssessmentDate).ToString("o")" title="@COMS_MVC.Helpers.PhTime.ToPhString(risk.AssessmentDate) (Philippine time)">@COMS_MVC.Helpers.PhTime.ToRelative(risk.AssessmentDate)</time></td>
                                     </tr>
                                 }
                             </tbody>
@@ -236,7 +213,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">No risk assessments available.</p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-shield-check", Title = "No risk assessments yet", Message = "Assessments appear after sensor readings are processed." })" />
                 }
             </div>
         </div>
@@ -272,6 +249,14 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @if (!Model.SensorStatus.Any())
+                            {
+                                <tr>
+                                    <td colspan="4">
+                                        <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-broadcast", Title = "No sensors registered", Message = "Sensor status appears once monitoring devices are added." })" />
+                                    </td>
+                                </tr>
+                            }
                             @foreach (var sensor in Model.SensorStatus.Take(10))
                             {
                                 <tr>
@@ -288,7 +273,7 @@
                                                 _ => "secondary"
                                             };
                                         }
-                                        <span class="badge bg-@sensorColor">@sensor.Status</span>
+                                        @Html.StatusBadge(sensor.Status)
                                     </td>
                                 </tr>
                             }
@@ -328,7 +313,7 @@
                 }
                 else
                 {
-                    <p class="text-muted text-center py-3 mb-0">No announcements.</p>
+                    <partial name="_EmptyState" model="@(new EmptyStateViewModel { Icon = "bi-megaphone", Title = "No announcements", Message = "Published announcements will appear here." })" />
                 }
             </div>
         </div>
@@ -353,3 +338,6 @@
         };
     }
 }
+
+
+
