@@ -316,7 +316,8 @@ public sealed class SecurityAuditTests
         await ctx.Db.SaveChangesAsync();
 
         var controller = new SensorsController(
-            ctx.Db, TestUserManagers.CreateUserManager(ctx.Db), new FakeLookups());
+            ctx.Db, TestUserManagers.CreateUserManager(ctx.Db), new FakeLookups(),
+            CanalSubmissionAndBoundaryTests.CreateBoundary());
         AsUser(controller, bg, "Barangay");
         var result = Assert.IsType<ViewResult>(await controller.Index());
         var sensors = Assert.IsAssignableFrom<IEnumerable<Sensor>>(result.Model);
@@ -334,7 +335,8 @@ public sealed class SecurityAuditTests
         await ctx.Db.SaveChangesAsync();
 
         var controller = new SensorsController(
-            ctx.Db, TestUserManagers.CreateUserManager(ctx.Db), new FakeLookups());
+            ctx.Db, TestUserManagers.CreateUserManager(ctx.Db), new FakeLookups(),
+            CanalSubmissionAndBoundaryTests.CreateBoundary());
         AsUser(controller, bg, "Barangay");
         var otherSensorId = await ctx.Db.Sensors
             .Where(s => s.SensorCode == "OTHER-1").Select(s => s.SensorId).SingleAsync();

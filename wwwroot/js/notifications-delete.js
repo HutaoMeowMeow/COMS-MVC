@@ -1,6 +1,7 @@
-/* COMS Notifications — per-notification delete via AJAX with confirmation,
-   toast feedback, and immediate DOM removal. Falls back to standard
-   form POST when JS is unavailable (the form submits normally). */
+/* COMS Notifications — per-notification delete and mark-as-read via AJAX
+   (delete with confirmation, toast feedback, immediate DOM update). Falls
+   back to standard form POST when JS is unavailable (the form submits
+   normally). */
 (function () {
     'use strict';
 
@@ -19,13 +20,90 @@
 
     var updateUnreadCount = function (count) {
         var badge = document.getElementById('notification-count-badge');
-        if (!badge) return;
-        if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'inline-block';
-        } else {
-            badge.style.display = 'none';
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
         }
+        var pill = document.getElementById('notifications-unread-pill');
+        if (pill) {
+            pill.textContent = count + ' unread';
+            pill.classList.toggle('d-none', count <= 0);
+        }
+        if (window.refreshNotificationPreview) window.refreshNotificationPreview();
+    };
+
+    var postForm = function (form, token) {
+        var formData = new FormData();
+        formData.append('__RequestVerificationToken', token);
+        return fetch(form.getAttribute('action'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData
+        }).then(function (response) {
+            return response.json();
+        });
+    };
+
+    // Turn an unread row into the same look the server renders for read rows.
+    var markItemRead = function (item, form) {
+        if (item) {
+            item.classList.remove('is-unread');
+            var title = item.querySelector('.notification-title');
+            if (title) {
+                title.classList.remove('fw-bold');
+                title.classList.add('text-muted');
+            }
+            var badge = item.querySelector('[data-read-badge]');
+            if (badge) {
+                badge.classList.remove('bg-primary-subtle', 'text-primary');
+                badge.classList.add('bg-secondary-subtle', 'text-secondary');
+                badge.textContent = 'Read';
+            }
+            // The focused button is about to disappear; keep keyboard users in the row.
+            var next = item.querySelector('form[data-ajax-delete="true"] button');
+            if (next && form.contains(document.activeElement)) next.focus({ preventScroll: true });
+        }
+        form.remove();
+    };
+
+    var handleMarkRead = function (form) {
+        if (form.dataset.busy === 'true') return;
+        var token = getToken(form);
+        if (!form.getAttribute('action') || !token) {
+            showToast('error', 'Update failed', 'Missing security token. Please refresh the page.');
+            return;
+        }
+        var button = form.querySelector('button[type="submit"]');
+        var setBusy = function (busy) {
+            form.dataset.busy = busy ? 'true' : '';
+            if (button) button.disabled = busy;
+        };
+        setBusy(true);
+
+        postForm(form, token)
+            .then(function (data) {
+                if (data && data.success) {
+                    markItemRead(findItem(form), form);
+                    if (typeof data.unreadCount === 'number') {
+                        updateUnreadCount(data.unreadCount);
+                    }
+                } else {
+                    setBusy(false);
+                    showToast('error', 'Update failed', (data && data.message) || 'Could not mark the notification as read.');
+                }
+            })
+            .catch(function () {
+                setBusy(false);
+                showToast('error', 'Connection error', 'Could not mark the notification as read. Please try again.');
+            });
     };
 
     var showToast = function (type, title, message) {
@@ -72,6 +150,13 @@
         if (!content) return;
 
         content.addEventListener('submit', function (e) {
+            var readForm = e.target.closest('form[data-ajax-read="true"]');
+            if (readForm) {
+                e.preventDefault();
+                handleMarkRead(readForm);
+                return;
+            }
+
             var form = e.target.closest('form[data-ajax-delete="true"]');
             if (!form) return;
 
@@ -89,21 +174,7 @@
             var confirmed = window.confirm('Delete this notification? This cannot be undone.');
             if (!confirmed) return;
 
-            var formData = new FormData();
-            formData.append('__RequestVerificationToken', token);
-
-            fetch(action, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                },
-                body: formData
-            })
-                .then(function (response) {
-                    return response.json();
-                })
+            postForm(form, token)
                 .then(function (data) {
                     if (data.success) {
                         if (item) {

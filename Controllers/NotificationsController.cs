@@ -268,16 +268,37 @@ namespace COMS_MVC.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAsRead(int id)
         {
+            var isAjax = Request.Headers["X-Requested-With"] == "XMLHttpRequest";
+
             if (id <= 0)
             {
+                if (isAjax) return Json(new { success = false, message = "Invalid notification." });
                 TempData["ErrorMessage"] = "Invalid notification.";
                 return RedirectToAction(nameof(Index));
             }
             if (!int.TryParse(_userManager.GetUserId(User), out var userId))
             {
+                if (isAjax) return Json(new { success = false, message = "Please sign in again." });
                 return RedirectToAction("Login", "Account");
             }
-            var ok = await _notificationService.MarkAsReadAsync(id, userId);
+
+            bool ok;
+            try
+            {
+                ok = await _notificationService.MarkAsReadAsync(id, userId);
+            }
+            catch (Exception) when (isAjax)
+            {
+                return Json(new { success = false, message = "Could not update the notification. Please try again." });
+            }
+
+            if (isAjax)
+            {
+                if (!ok) return Json(new { success = false, message = "Notification not found." });
+                var unread = await _notificationService.GetUnreadCountAsync(userId);
+                return Json(new { success = true, notificationId = id, unreadCount = unread });
+            }
+
             if (!ok)
             {
                 TempData["ErrorMessage"] = "Notification not found.";

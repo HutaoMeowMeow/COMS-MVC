@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace COMS_MVC.Controllers
 {
@@ -9,12 +11,37 @@ namespace COMS_MVC.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILookupService _lookups;
+        private readonly IMemoryCache _cache;
+        private readonly ICebuBoundaryService _cebuBoundary;
 
-        public CanalsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, ILookupService lookups)
+        private static readonly object SubmissionLock = new();
+        private static readonly Regex SubmissionIdPattern = new("^[0-9a-fA-F]{32}$", RegexOptions.Compiled);
+
+        public CanalsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, ILookupService lookups,
+            IMemoryCache cache, ICebuBoundaryService cebuBoundary)
         {
             _context = context;
             _userManager = userManager;
             _lookups = lookups;
+            _cache = cache;
+            _cebuBoundary = cebuBoundary;
+        }
+
+        /// <summary>
+        /// Atomically claims a one-time submission key for 10 minutes. Returns
+        /// false when the key was already claimed (duplicate POST).
+        /// </summary>
+        internal static bool TryClaimSubmission(IMemoryCache cache, string key)
+        {
+            lock (SubmissionLock)
+            {
+                if (cache.TryGetValue(key, out _))
+                {
+                    return false;
+                }
+                cache.Set(key, true, TimeSpan.FromMinutes(10));
+                return true;
+            }
         }
 
         [HttpGet]
@@ -72,14 +99,19 @@ namespace COMS_MVC.Controllers
         public async Task<IActionResult> Create()
         {
             await PopulateStatusDropDown();
+            ViewBag.SubmissionId = Guid.NewGuid().ToString("N");
             return View(new Canal());
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create(Canal canal)
+        public async Task<IActionResult> Create(Canal canal, [FromForm] string? submissionId)
         {
+            if (string.IsNullOrEmpty(submissionId) || !SubmissionIdPattern.IsMatch(submissionId))
+            {
+                ModelState.AddModelError(string.Empty, "Form expired, please submit again.");
+            }
             NormalizeCanalInput(canal);
             ValidateCebuLocation(canal);
             ValidateWaterLevels(canal);
@@ -90,6 +122,12 @@ namespace COMS_MVC.Controllers
 
             if (ModelState.IsValid)
             {
+                var submissionKey = $"canal-submit:{_userManager.GetUserId(User)}:{submissionId!.ToLowerInvariant()}";
+                if (!TryClaimSubmission(_cache, submissionKey))
+                {
+                    TempData["SuccessMessage"] = "This canal was already submitted.";
+                    return RedirectToAction(nameof(Index));
+                }
                 try
                 {
                     canal.CreatedAt = DateTime.UtcNow;
@@ -100,15 +138,18 @@ namespace COMS_MVC.Controllers
                 }
                 catch (DbUpdateException)
                 {
+                    _cache.Remove(submissionKey);
                     ModelState.AddModelError(string.Empty, "Could not save the canal. Please check your input and try again.");
                 }
                 catch (Exception)
                 {
+                    _cache.Remove(submissionKey);
                     ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the canal. Please try again.");
                 }
             }
 
             await PopulateStatusDropDown();
+            ViewBag.SubmissionId = Guid.NewGuid().ToString("N");
             return View(canal);
         }
 
@@ -137,7 +178,13 @@ namespace COMS_MVC.Controllers
             }
 
             NormalizeCanalInput(canal);
-            ValidateCebuLocation(canal);
+            // Records saved before the polygon rule stay editable while their point is unchanged.
+            var pointUnchanged = await _context.Canals.AnyAsync(c => c.CanalId == id
+                && Math.Abs(c.Latitude - canal.Latitude) < 1e-7 && Math.Abs(c.Longitude - canal.Longitude) < 1e-7);
+            if (!pointUnchanged)
+            {
+                ValidateCebuLocation(canal);
+            }
             ValidateWaterLevels(canal);
             if (!await _lookups.IsValidAsync(LookupService.Categories.CanalStatus, canal.Status))
             {
@@ -236,14 +283,10 @@ namespace COMS_MVC.Controllers
 
         private void ValidateCebuLocation(Canal canal)
         {
-            // System coverage is Cebu province only.
-            if (canal.Latitude < 9.30 || canal.Latitude > 11.45)
+            // Same Cebu report-area polygon the map mask uses.
+            if (!_cebuBoundary.Contains(canal.Latitude, canal.Longitude))
             {
-                ModelState.AddModelError(nameof(canal.Latitude), "Latitude must be inside Cebu (9.30 to 11.45).");
-            }
-            if (canal.Longitude < 123.20 || canal.Longitude > 124.60)
-            {
-                ModelState.AddModelError(nameof(canal.Longitude), "Longitude must be inside Cebu (123.20 to 124.60).");
+                ModelState.AddModelError(nameof(canal.Latitude), "Location must be inside Cebu. Please select a point within the highlighted area.");
             }
         }
 
@@ -275,9 +318,7 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Map()
         {
-            IQueryable<Canal> query = _context.Canals
-                .Include(c => c.Sensors)
-                .Include(c => c.Alerts.Where(a => a.Status == "Active" || a.Status == "Acknowledged" || a.Status == "In Progress"));
+            IQueryable<Canal> query = _context.Canals.AsNoTracking();
             if (User.IsInRole("Barangay"))
             {
                 var user = await _userManager.GetUserAsync(User);

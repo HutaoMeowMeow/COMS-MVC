@@ -13,6 +13,8 @@
 
 <form asp-action="Create" method="post">
     @Html.AntiForgeryToken()
+    <input type="hidden" name="submissionId" value="@ViewBag.SubmissionId" />
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom">
             <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Canal Information</h5>
@@ -128,7 +130,7 @@
         <a asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i>Cancel
         </a>
-        <button type="submit" class="btn btn-success">
+        <button type="submit" class="btn btn-success" data-submit-once data-loading-text="Creating Canal...">
             <i class="bi bi-check-lg me-1"></i>Create Canal
         </button>
     </div>
@@ -138,6 +140,7 @@
     <partial name="_ValidationScriptsPartial" />
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="~/js/cebu-map.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var latInput = document.getElementById('Latitude');
@@ -145,6 +148,7 @@
             // Cebu province bounds: lat 9.30-11.45, lng 123.20-124.60. Center: Cebu City.
             var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
             var cebuCenter = [10.3157, 123.8854];
+            var hadSavedPoint = !!(parseFloat(latInput.value) && parseFloat(lngInput.value));
             var defaultLat = parseFloat(latInput.value) || cebuCenter[0];
             var defaultLng = parseFloat(lngInput.value) || cebuCenter[1];
             if (!cebuBounds.contains([defaultLat, defaultLng])) {
@@ -161,6 +165,8 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+            // Dims everything outside Cebu and outlines the permitted islands.
+            var cebu = CebuMap.apply(map, { fit: !hadSavedPoint });
 
             var marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
             // Last position confirmed inside Cebu: invalid drags/geolocation
@@ -168,7 +174,7 @@
             var lastValid = L.latLng(defaultLat, defaultLng);
 
             function inCebu(lat, lng) {
-                return lat >= 9.30 && lat <= 11.45 && lng >= 123.20 && lng <= 124.60;
+                return cebu.isInside(lat, lng);
             }
 
             function syncInputs(lat, lng) {
@@ -198,7 +204,7 @@
                 var pos = marker.getLatLng();
                 if (!inCebu(pos.lat, pos.lng)) {
                     marker.setLatLng(lastValid);
-                    showLocationError('Please pick a location inside Cebu. The pin was returned to your last valid location.');
+                    showLocationError(CebuMap.OUTSIDE_MESSAGE);
                     return;
                 }
                 lastValid = L.latLng(pos.lat, pos.lng);
@@ -209,7 +215,7 @@
 
             map.on('click', function (e) {
                 if (!inCebu(e.latlng.lat, e.latlng.lng)) {
-                    showLocationError('That point is outside Cebu. Please pick a location inside Cebu.');
+                    showLocationError(CebuMap.OUTSIDE_MESSAGE);
                     return;
                 }
                 lastValid = L.latLng(e.latlng.lat, e.latlng.lng);

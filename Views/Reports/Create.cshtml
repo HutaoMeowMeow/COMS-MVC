@@ -216,6 +216,7 @@
     <script src="~/js/report-draft.js" asp-append-version="true"></script>
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="~/js/cebu-map.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var latInput = document.getElementById('Latitude');
@@ -223,6 +224,7 @@
             // Cebu province bounds: lat 9.30-11.45, lng 123.20-124.60. Center: Cebu City.
             var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
             var cebuCenter = [10.3157, 123.8854];
+            var hadSavedPoint = !!(parseFloat(latInput.value) && parseFloat(lngInput.value));
             var defaultLat = parseFloat(latInput.value) || cebuCenter[0];
             var defaultLng = parseFloat(lngInput.value) || cebuCenter[1];
             if (!cebuBounds.contains([defaultLat, defaultLng])) {
@@ -240,78 +242,9 @@
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
-            // Cebu report-area polygons — the single source of truth is the
-            // static GeoJSON served below; the server validates report POSTs
-            // against the exact same polygons (Services/CebuBoundaryService.cs).
-            // The permitted area covers Cebu Island (Cebu City, Mandaue,
-            // Talisay and every Cebu Island municipality) PLUS Mactan Island
-            // (Lapu-Lapu City, Cordova) and Olango Island (Lapu-Lapu City
-            // barangays). Everything else — Bohol, Leyte, Negros, Bantayan,
-            // Camotes… — is dimmed with a translucent negative mask while the
-            // permitted islands keep full map detail, roads and labels. These
-            // are real island outlines, not a bounding box.
-            var cebuRings = [];   // array of [lat, lng] rings
-            var cebuReady = false;
-
-            function pointInPolygon(lat, lng, ring) {
-                var inside = false;
-                var j = ring.length - 1;
-                for (var i = 0; i < ring.length; i++) {
-                    var latI = ring[i][0], lngI = ring[i][1];
-                    var latJ = ring[j][0], lngJ = ring[j][1];
-                    var intersects = (latI > lat) !== (latJ > lat)
-                        && lng < (lngJ - lngI) * (lat - latI) / (latJ - latI) + lngI;
-                    if (intersects) inside = !inside;
-                    j = i;
-                }
-                return inside;
-            }
-
-            fetch('@Url.Content("~/data/cebu-report-area.geojson")')
-                .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
-                .then(function (data) {
-                    if (!data || !data.features || !data.features.length) return;
-                    data.features.forEach(function (feature) {
-                        var geom = feature.geometry;
-                        if (!geom) return;
-                        var polys = (geom.type === 'MultiPolygon') ? geom.coordinates : [geom.coordinates];
-                        polys.forEach(function (poly) {
-                            var ring = poly[0];
-                            if (!ring || ring.length < 3) return;
-                            // GeoJSON order is [lng, lat]; Leaflet wants [lat, lng].
-                            cebuRings.push(ring.map(function (pt) { return [pt[1], pt[0]]; }));
-                        });
-                    });
-                    if (!cebuRings.length) return;
-                    cebuReady = true;
-
-                    // Negative mask: a huge world rectangle with every
-                    // permitted island as a hole. Land outside the reporting
-                    // area dims out — tiles stay valid, no broken imagery.
-                    var world = [[85, -180], [85, 180], [-85, 180], [-85, -180]];
-                    L.polygon([world].concat(cebuRings), {
-                        stroke: false,
-                        fillColor: '#334155',
-                        fillOpacity: 0.72,
-                        interactive: false
-                    }).addTo(map);
-
-                    // Visible outlines so the permitted islands are clear.
-                    cebuRings.forEach(function (ring) {
-                        L.polygon(ring, {
-                            color: '#2b6cb0',
-                            weight: 2,
-                            fill: false,
-                            interactive: false
-                        }).addTo(map);
-                    });
-                })
-                .catch(function () {
-                    // If the boundary file cannot be fetched the rectangle
-                    // still clamps panning and inCebu() falls back to it —
-                    // the server keeps enforcing the authoritative polygons.
-                });
-
+            // Cebu report-area mask + outline; the server validates report
+            // POSTs against the same polygons (Services/CebuBoundaryService.cs).
+            var cebu = CebuMap.apply(map, { fit: !hadSavedPoint });
 
             var marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
             // Last position the user actually confirmed inside Cebu: an
@@ -320,16 +253,7 @@
             var lastValid = L.latLng(defaultLat, defaultLng);
 
             function inCebu(lat, lng) {
-                // Polygon wins once loaded; the legacy rectangle is the
-                // fallback while the (local static) GeoJSON fetch is in
-                // flight, so interaction is never held hostage by the loader.
-                if (cebuReady) {
-                    for (var r = 0; r < cebuRings.length; r++) {
-                        if (pointInPolygon(lat, lng, cebuRings[r])) return true;
-                    }
-                    return false;
-                }
-                return lat >= 9.30 && lat <= 11.45 && lng >= 123.20 && lng <= 124.60;
+                return cebu.isInside(lat, lng);
             }
 
             function syncInputs(lat, lng) {
@@ -367,7 +291,7 @@
                 if (!inCebu(pos.lat, pos.lng)) {
                     // Restore the previous valid pin; do not move the map.
                     marker.setLatLng(lastValid);
-                    showLocationError('That point is outside Cebu. The pin was returned to your last valid location — please pick a spot inside Cebu.');
+                    showLocationError(CebuMap.OUTSIDE_MESSAGE);
                     return;
                 }
                 acceptMarker(pos.lat, pos.lng, true);
@@ -375,7 +299,7 @@
 
             map.on('click', function (e) {
                 if (!inCebu(e.latlng.lat, e.latlng.lng)) {
-                    showLocationError('That point is outside Cebu. Please pick a location inside Cebu.');
+                    showLocationError(CebuMap.OUTSIDE_MESSAGE);
                     return;
                 }
                 acceptMarker(e.latlng.lat, e.latlng.lng, false);

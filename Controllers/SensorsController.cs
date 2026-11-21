@@ -8,14 +8,17 @@ namespace COMS_MVC.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILookupService _lookups;
+        private readonly ICebuBoundaryService _cebuBoundary;
 
         public SensorsController(ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
-            ILookupService lookups)
+            ILookupService lookups,
+            ICebuBoundaryService cebuBoundary)
         {
             _context = context;
             _userManager = userManager;
             _lookups = lookups;
+            _cebuBoundary = cebuBoundary;
         }
 
         [HttpGet]
@@ -325,13 +328,12 @@ namespace COMS_MVC.Controllers
 
         private async Task ValidateSensorAsync(Sensor sensor, bool isNew)
         {
-            if (sensor.Latitude < 9.30 || sensor.Latitude > 11.45)
+            // Sensors saved before the polygon rule stay editable while their point is unchanged.
+            var pointUnchanged = !isNew && await _context.Sensors.AnyAsync(s => s.SensorId == sensor.SensorId
+                && Math.Abs(s.Latitude - sensor.Latitude) < 1e-7 && Math.Abs(s.Longitude - sensor.Longitude) < 1e-7);
+            if (!pointUnchanged && !_cebuBoundary.Contains(sensor.Latitude, sensor.Longitude))
             {
-                ModelState.AddModelError(nameof(sensor.Latitude), "Latitude must be inside Cebu (9.30 to 11.45).");
-            }
-            if (sensor.Longitude < 123.20 || sensor.Longitude > 124.60)
-            {
-                ModelState.AddModelError(nameof(sensor.Longitude), "Longitude must be inside Cebu (123.20 to 124.60).");
+                ModelState.AddModelError(nameof(sensor.Latitude), "Location must be inside Cebu. Please select a point within the highlighted area.");
             }
             if (sensor.CanalId <= 0)
             {

@@ -2,6 +2,9 @@
 @{
     ViewData["Title"] = "Canal Map";
     ViewData["PageTitle"] = "Canal Map";
+    var canalsJson = System.Text.Json.JsonSerializer.Serialize(
+        Model.Select(c => new { c.CanalId, c.CanalName, c.Location, c.Status, c.Latitude, c.Longitude }),
+        new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -35,8 +38,14 @@
 @section Scripts {
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="~/js/cebu-map.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            function esc(value) {
+                return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            }
             var cebuBounds = L.latLngBounds([9.30, 123.20], [11.45, 124.60]);
             var map = L.map('monitoringMap', {
                 maxBounds: cebuBounds,
@@ -47,11 +56,14 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
+            CebuMap.apply(map, { fit: true });
 
-            var canals = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }))
+            // Only the fields the markers need; the serializer's default
+            // encoder escapes <, > and quotes, so this cannot break out of the script.
+            var canals = @Html.Raw(canalsJson);
 
             canals.forEach(function (canal) {
-                var severity = canal.status.toLowerCase();
+                var severity = (canal.status || '').toLowerCase();
                 var color = severity === 'normal' ? 'green' :
                     severity === 'warning' ? 'orange' :
                     severity === 'critical' ? 'red' : 'gray';
@@ -65,12 +77,12 @@
                 }).addTo(map);
 
                 var popupContent = '<div class="p-2">' +
-                    '<h6 class="mb-1 fw-bold">' + canal.canalName + '</h6>' +
-                    '<p class="small mb-1"><i class="bi bi-geo-alt me-1"></i>' + canal.location + '</p>' +
+                    '<h6 class="mb-1 fw-bold">' + esc(canal.canalName) + '</h6>' +
+                    '<p class="small mb-1"><i class="bi bi-geo-alt me-1"></i>' + esc(canal.location) + '</p>' +
                     '<p class="small mb-2"><span class="badge bg-' +
                     (severity === 'normal' ? 'success' : severity === 'warning' ? 'warning' : severity === 'critical' ? 'danger' : 'secondary') +
-                    '">' + canal.status + '</span></p>' +
-                    '<a href="/Canals/Details/' + canal.canalId + '" class="btn btn-sm btn-primary">View Details</a>' +
+                    '">' + esc(canal.status) + '</span></p>' +
+                    '<a href="/Canals/Details/' + encodeURIComponent(canal.canalId) + '" class="btn btn-sm btn-primary">View Details</a>' +
                     '</div>';
 
                 marker.bindPopup(popupContent);

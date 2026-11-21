@@ -228,6 +228,7 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+    <script src="~/js/cebu-map.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var lat = @Model.Latitude;
@@ -242,6 +243,7 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
+            CebuMap.apply(map);
             L.marker([lat, lng]).addTo(map)
                 .bindPopup('<b>@Model.CanalName</b><br/>@Model.Location')
                 .openPopup();

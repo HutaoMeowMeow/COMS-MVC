@@ -101,6 +101,70 @@
         setTimeout(init, 0);
     }
 
+    // Submit-once: a form whose submit button carries data-submit-once is
+    // locked after a submit that is really going out (not cancelled by
+    // validation or another handler). The button shows data-loading-text
+    // (icon kept) and stays disabled until the page is replaced; a server-side
+    // validation error re-renders the page, and a back/forward cache restore
+    // is undone on pageshow.
+    function submitOnceButtons(form) {
+        return form.querySelectorAll('button[data-submit-once]');
+    }
+
+    function labelTextNode(btn) {
+        for (var i = btn.childNodes.length - 1; i >= 0; i--) {
+            var n = btn.childNodes[i];
+            if (n.nodeType === 3 && n.textContent.trim()) return n;
+        }
+        return null;
+    }
+
+    function setSubmitOnce(btn, active) {
+        var text = btn.getAttribute('data-loading-text');
+        var node = labelTextNode(btn);
+        if (active) {
+            if (text && node) { btn.dataset.originalText = node.textContent; node.textContent = text; }
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+        } else {
+            if (node && btn.dataset.originalText != null) node.textContent = btn.dataset.originalText;
+            delete btn.dataset.originalText;
+            btn.disabled = false;
+            btn.removeAttribute('aria-busy');
+        }
+    }
+
+    // Capture phase on document: runs before any form handler, so a second
+    // submit (double click, Enter) is stopped before anything else sees it.
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!(form instanceof HTMLFormElement) || !submitOnceButtons(form).length) return;
+        if (form.dataset.submitState === 'active') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
+    }, true);
+
+    // Bubble phase on window: runs after the form's own handlers (jQuery
+    // validation included), so a cancelled submit is visible here.
+    window.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        var buttons = submitOnceButtons(form);
+        if (!buttons.length || e.defaultPrevented || form.dataset.submitState === 'active') return;
+        var $ = window.jQuery;
+        if ($ && $.fn && $.fn.valid && $(form).data('validator') && !$(form).valid()) return;
+        form.dataset.submitState = 'active';
+        buttons.forEach(function (btn) { setSubmitOnce(btn, true); });
+    });
+
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('form[data-submit-state="active"]').forEach(function (form) {
+            form.dataset.submitState = '';
+            submitOnceButtons(form).forEach(function (btn) { setSubmitOnce(btn, false); });
+        });
+    });
+
     window.COMS_LOADING = { setLoading: setLoading, bind: bind };
 
     if (document.readyState === 'loading') {
