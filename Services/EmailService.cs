@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Mail;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
@@ -11,7 +12,7 @@ namespace COMS_MVC.Services
     /// Bind from appsettings.json -&gt; "Email". Never commit a real ApiKey.
     /// Prefer user-secrets / env vars in production:
     ///   dotnet user-secrets set "Email:ApiKey" "xkeysib_xxx"
-    ///   dotnet user-secrets set "Email:SenderEmail" "no-reply@yourdomain.com"
+    ///   dotnet user-secrets set "Email:SenderEmail" "&lt;your Brevo-verified sender&gt;"  (placeholders are rejected)
     /// Brevo docs: POST https://api.brevo.com/v3/smtp/email with header "api-key".
     /// </summary>
     public class BrevoOptions
@@ -19,6 +20,25 @@ namespace COMS_MVC.Services
         public string ApiKey { get; set; } = string.Empty;
         public string SenderEmail { get; set; } = string.Empty;
         public string SenderName { get; set; } = "COMS";
+
+        // Domains that can never be a real Brevo-verified sender. resend.dev is the
+        // Resend sandbox (onboarding@resend.dev) left over from the old provider.
+        private static readonly string[] PlaceholderDomains =
+            { "resend.dev", "example.com", "example.org", "example.net", "yourdomain.com", "test.com", "localhost" };
+
+        /// <summary>Returns null when <paramref name="email"/> is a usable sender, otherwise the reason it is not.</summary>
+        public static string? SenderProblem(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email)) return "sender email is empty";
+            // Address must equal the input: rejects display-name forms and stray whitespace.
+            if (!MailAddress.TryCreate(email, out var addr) || addr.Address != email)
+                // Never echo the raw value: a key pasted into the sender field would land in logs.
+                return "sender email is not a valid email address";
+            var host = addr.Host.ToLowerInvariant();
+            if (PlaceholderDomains.Any(d => host == d || host.EndsWith("." + d, StringComparison.Ordinal)))
+                return $"sender email uses placeholder/non-Brevo domain '{host}'";
+            return null;
+        }
     }
 
     /// <summary>
@@ -52,6 +72,7 @@ namespace COMS_MVC.Services
         private readonly HttpClient _http;
         private readonly BrevoOptions _options;
         private readonly ILogger<BrevoEmailService> _logger;
+        private static int _diagnosticsLogged;
 
         public BrevoEmailService(
             HttpClient http,
@@ -61,6 +82,9 @@ namespace COMS_MVC.Services
             _http = http;
             _options = options.Value;
             _logger = logger;
+
+            // The typed client is transient (built per request): log config diagnostics once per process.
+            if (Interlocked.Exchange(ref _diagnosticsLogged, 1) == 1) return;
 
             // Startup diagnostic (never logs the key itself): Brevo API keys start
             // with "xkeysib-". Anything else (e.g. a Resend "re_" key left over from
@@ -75,6 +99,15 @@ namespace COMS_MVC.Services
                 _logger.LogError(
                     "Email:ApiKey does not look like a Brevo key (expected prefix 'xkeysib-'). " +
                     "Brevo will reject mail sends until a valid Brevo key is configured via user-secrets or env vars.");
+            }
+            var senderProblem = BrevoOptions.SenderProblem(_options.SenderEmail);
+            if (senderProblem != null &&
+                (!string.IsNullOrWhiteSpace(_options.ApiKey) || !string.IsNullOrWhiteSpace(_options.SenderEmail)))
+            {
+                _logger.LogError(
+                    "Brevo sender is invalid: {Problem}. Set Brevo:SenderEmail (or Email:SenderEmail) to a " +
+                    "Brevo-verified sender via user-secrets or env vars; all mail sends will fail until then.",
+                    senderProblem);
             }
         }
 
@@ -95,6 +128,16 @@ namespace COMS_MVC.Services
                 _logger.LogWarning(
                     "Email NOT sent (Brevo not configured). To: {To} Subject: {Subject}",
                     toEmail, subject);
+                throw new EmailServiceException("Email provider is not configured.");
+            }
+
+            var senderProblem = BrevoOptions.SenderProblem(_options.SenderEmail);
+            if (senderProblem != null)
+            {
+                // Never substitute another address: fail before calling Brevo.
+                _logger.LogError(
+                    "Email NOT sent (invalid Brevo sender: {Problem}). To: {To} Subject: {Subject}",
+                    senderProblem, toEmail, subject);
                 throw new EmailServiceException("Email provider is not configured.");
             }
 
@@ -138,7 +181,10 @@ namespace COMS_MVC.Services
                 throw new EmailServiceException("Email provider rejected the request. Please try again later.");
             }
 
-            _logger.LogInformation("Brevo email sent to {To} with subject {Subject}", toEmail, subject);
+            var messageId = await ReadMessageIdAsync(response, ct);
+            _logger.LogInformation(
+                "Brevo email sent to {To} with subject {Subject}, messageId {MessageId}",
+                toEmail, subject, messageId ?? "(none returned)");
         }
 
         public Task SendPasswordResetEmailAsync(string toEmail, string resetLink, CancellationToken ct = default)
@@ -193,11 +239,14 @@ namespace COMS_MVC.Services
             return SendEmailAsync(toEmail, "Your COMS verification code", html, ct);
         }
 
-        private static async Task<string> SafeReadBodyAsync(HttpResponseMessage response, CancellationToken ct)
+        private async Task<string> SafeReadBodyAsync(HttpResponseMessage response, CancellationToken ct)
         {
             try
             {
                 var body = await response.Content.ReadAsStringAsync(ct);
+                // Defensive: never let the key reach logs even if an error body echoes it.
+                if (!string.IsNullOrEmpty(_options.ApiKey))
+                    body = body.Replace(_options.ApiKey, "[redacted]", StringComparison.Ordinal);
                 return body.Length > 500 ? body[..500] : body;
             }
             catch
@@ -205,6 +254,22 @@ namespace COMS_MVC.Services
                 return "(unreadable error body)";
             }
         }
+
+        private static async Task<string?> ReadMessageIdAsync(HttpResponseMessage response, CancellationToken ct)
+        {
+            try
+            {
+                var result = await response.Content.ReadFromJsonAsync<BrevoSendResponse>(ct);
+                return result?.MessageId;
+            }
+            catch
+            {
+                return null; // success already happened; a missing/odd body must not turn it into a failure
+            }
+        }
+
+        private sealed record BrevoSendResponse(
+            [property: JsonPropertyName("messageId")] string? MessageId);
 
         private sealed record BrevoSender(
             [property: JsonPropertyName("name")] string Name,

@@ -924,7 +924,7 @@ The first implementation used Gmail SMTP (`smtp.gmail.com:587`, STARTTLS, App Pa
 3. Store secrets outside git (user-secrets overlay `appsettings.json` automatically):
    ```bash
    dotnet user-secrets set "Email:ApiKey" "xkeysib_xxx"
-   dotnet user-secrets set "Email:SenderEmail" "no-reply@yourdomain.com"
+   dotnet user-secrets set "Email:SenderEmail" "<your Brevo-verified sender>"
    ```
    (Production/Railway equivalents: `Brevo__ApiKey`, `Brevo__SenderEmail`.)
 4. Restart `dotnet run` (config binds at startup), retry Forgot Password / Register, expect `Brevo email sent to...` in console. If the key does not start with `xkeysib-`, startup logs an error — a leftover Resend `re_...` key will not work.

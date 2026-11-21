@@ -118,8 +118,12 @@ builder.Services.Configure<BrevoOptions>(o =>
         o.ApiKey = builder.Configuration["Email:ApiKey"] ?? string.Empty;
     if (string.IsNullOrWhiteSpace(o.SenderEmail))
         o.SenderEmail = builder.Configuration["Email:SenderEmail"] ?? string.Empty;
+    // SenderName defaults to "COMS", so test the Brevo key itself or the legacy name is never used.
+    var legacyName = builder.Configuration["Email:SenderName"];
+    if (string.IsNullOrWhiteSpace(builder.Configuration["Brevo:SenderName"]) && !string.IsNullOrWhiteSpace(legacyName))
+        o.SenderName = legacyName;
     if (string.IsNullOrWhiteSpace(o.SenderName))
-        o.SenderName = builder.Configuration["Email:SenderName"] ?? "COMS";
+        o.SenderName = "COMS";
 });
 builder.Services.AddHttpClient<IEmailService, BrevoEmailService>(client =>
 {

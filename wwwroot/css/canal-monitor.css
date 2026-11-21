@@ -1,0 +1,252 @@
+/* Canal Monitoring page (Views/Canals/Map.cshtml). Scoped to .canal-monitor.
+   Surfaces and text use the theme.css variables, so light/dark follow the app theme. */
+
+.canal-monitor {
+    --cm-normal: #18794e;    --cm-normal-bg: #e3f4ea;
+    --cm-warning: #97570d;   --cm-warning-bg: #fdf0d8;
+    --cm-critical: #b4232a;  --cm-critical-bg: #fbe7e7;
+    --cm-inactive: #55606e;  --cm-inactive-bg: #edf1f6;
+    --cm-focus: var(--coms-sky, #3182ce);
+    --cm-radius: 8px;
+    min-width: 0;
+}
+
+[data-theme="dark"] .canal-monitor {
+    --cm-normal: #6ee7b7;    --cm-normal-bg: rgba(16, 185, 129, .16);
+    --cm-warning: #fcd34d;   --cm-warning-bg: rgba(245, 158, 11, .16);
+    --cm-critical: #fca5a5;  --cm-critical-bg: rgba(239, 68, 68, .16);
+    --cm-inactive: #cbd5e1;  --cm-inactive-bg: rgba(148, 163, 184, .16);
+    --cm-focus: #93c5fd;
+}
+
+.canal-monitor .cm-muted { color: var(--theme-text-secondary); }
+
+/* ---------- Header ---------- */
+.canal-monitor .cm-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 16px;
+    margin-bottom: 16px;
+}
+.canal-monitor .cm-title { font-size: 1.5rem; font-weight: 650; margin: 0 0 4px; color: var(--theme-text); }
+.canal-monitor .cm-subtitle { margin: 0; font-size: .9375rem; color: var(--theme-text-secondary); }
+
+/* ---------- Summary strip ---------- */
+.canal-monitor .cm-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.canal-monitor .cm-stat {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--theme-card);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--cm-radius);
+    min-width: 0;
+}
+.canal-monitor .cm-stat-icon { grid-row: 1 / 3; font-size: 1.25rem; color: var(--theme-text-secondary); }
+.canal-monitor .cm-stat-value { font-size: 1.25rem; font-weight: 650; line-height: 1.2; color: var(--theme-text); }
+.canal-monitor .cm-stat-sub { font-size: .875rem; font-weight: 500; color: var(--theme-text-secondary); }
+.canal-monitor .cm-stat-label {
+    font-size: .8125rem;
+    color: var(--theme-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.canal-monitor .cm-tone-normal { color: var(--cm-normal); }
+.canal-monitor .cm-tone-warning { color: var(--cm-warning); }
+.canal-monitor .cm-tone-critical { color: var(--cm-critical); }
+.canal-monitor .cm-tone-inactive,
+.canal-monitor .cm-tone-unknown { color: var(--cm-inactive); }
+
+/* ---------- Cards ---------- */
+.canal-monitor .cm-card {
+    background: var(--theme-card);
+    color: var(--theme-text);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--cm-radius);
+    box-shadow: 0 1px 2px rgba(16, 42, 67, .06);
+    min-width: 0;
+}
+
+/* ---------- Map ---------- */
+.canal-monitor .cm-map-wrap { position: relative; }
+.canal-monitor .cm-map {
+    height: clamp(320px, 55vh, 480px);
+    border-radius: var(--cm-radius) var(--cm-radius) 0 0;
+    z-index: 0; /* keep Leaflet panes under the app's sticky header and dropdowns */
+}
+.canal-monitor .cm-map-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    text-align: center;
+    background: var(--theme-card);
+    color: var(--theme-text);
+    border-radius: var(--cm-radius) var(--cm-radius) 0 0;
+}
+.canal-monitor .cm-map-overlay[hidden] { display: none; }
+.canal-monitor .cm-map-error { color: var(--cm-critical); }
+
+.canal-monitor .cm-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 0;
+    padding: 12px 16px;
+    list-style: none;
+    font-size: .8125rem;
+    color: var(--theme-text-secondary);
+    border-top: 1px solid var(--theme-border);
+}
+.canal-monitor .cm-legend li { display: inline-flex; align-items: center; gap: 8px; }
+.canal-monitor .cm-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--theme-border);
+    flex: none;
+}
+.canal-monitor .cm-fill-normal { background: #16a34a; }
+.canal-monitor .cm-fill-warning { background: #d97706; }
+.canal-monitor .cm-fill-critical { background: #dc2626; }
+.canal-monitor .cm-fill-inactive { background: #64748b; }
+.canal-monitor .cm-swatch-ring { width: 16px; height: 16px; background: transparent; border: 3px solid #1d4ed8; box-shadow: none; }
+
+/* ---------- Panel ---------- */
+.canal-monitor .cm-panel { display: flex; flex-direction: column; }
+.canal-monitor .cm-view { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.canal-monitor .cm-view[hidden] { display: none; }
+.canal-monitor .cm-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--theme-border);
+}
+.canal-monitor .cm-panel-title { font-size: 1rem; font-weight: 650; margin: 0; }
+.canal-monitor .cm-search { padding: 12px 16px 8px; }
+.canal-monitor .cm-search .form-control { min-height: 44px; }
+
+.canal-monitor .cm-list { list-style: none; margin: 0; padding: 0 8px 8px; overflow-y: auto; }
+.canal-monitor .cm-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--theme-text);
+    text-align: left;
+    transition: background-color .15s ease;
+}
+.canal-monitor .cm-item:hover { background: var(--theme-hover); }
+.canal-monitor .cm-item-main { display: flex; flex-direction: column; min-width: 0; }
+.canal-monitor .cm-item-name { font-weight: 600; font-size: .9375rem; overflow-wrap: anywhere; }
+.canal-monitor .cm-item-meta { font-size: .8125rem; color: var(--theme-text-secondary); overflow-wrap: anywhere; }
+.canal-monitor .cm-item-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+
+/* ---------- Badges ---------- */
+.canal-monitor .cm-badge,
+.canal-monitor .cm-alert-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.canal-monitor .cm-st-normal { background: var(--cm-normal-bg); color: var(--cm-normal); }
+.canal-monitor .cm-st-warning { background: var(--cm-warning-bg); color: var(--cm-warning); }
+.canal-monitor .cm-st-critical { background: var(--cm-critical-bg); color: var(--cm-critical); }
+.canal-monitor .cm-st-inactive,
+.canal-monitor .cm-st-unknown { background: var(--cm-inactive-bg); color: var(--cm-inactive); }
+.canal-monitor .cm-alert-chip { background: var(--cm-critical-bg); color: var(--cm-critical); }
+
+/* ---------- Detail ---------- */
+.canal-monitor .cm-detail { padding: 16px; overflow-y: auto; flex: 1; min-height: 0; }
+.canal-monitor .cm-detail-title { font-size: 1.125rem; font-weight: 650; margin: 0 0 8px; overflow-wrap: anywhere; }
+.canal-monitor .cm-block { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--theme-border); }
+.canal-monitor .cm-block-title {
+    font-size: .8125rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--theme-text-secondary);
+    margin: 0 0 8px;
+}
+.canal-monitor .cm-reading-value { font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.canal-monitor .cm-thresholds {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 12px 0 0;
+}
+.canal-monitor .cm-thresholds div { padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px; min-width: 0; }
+.canal-monitor .cm-thresholds dt { font-size: .75rem; font-weight: 500; color: var(--theme-text-secondary); }
+.canal-monitor .cm-thresholds dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.canal-monitor .cm-sensors { list-style: none; margin: 0; padding: 0; }
+.canal-monitor .cm-sensors li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--theme-border);
+}
+.canal-monitor .cm-sensors li:last-child { border-bottom: 0; }
+.canal-monitor .cm-sensor-code { font-weight: 600; overflow-wrap: anywhere; }
+
+.canal-monitor .cm-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---------- Focus ---------- */
+.canal-monitor .cm-item:focus-visible,
+.canal-monitor .cm-btn:focus-visible,
+.canal-monitor .cm-detail-title:focus-visible {
+    outline: 3px solid var(--cm-focus);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+.canal-monitor .cm-detail-title:focus:not(:focus-visible) { outline: none; }
+
+/* ---------- Desktop: map and panel side by side, same height ---------- */
+@media (min-width: 992px) {
+    .canal-monitor .cm-map { height: min(70vh, 640px); }
+    /* The panel takes the map column's height and scrolls inside instead of growing the row. */
+    .canal-monitor .cm-panel-col { position: relative; }
+    .canal-monitor .cm-panel { position: absolute; inset: 0 calc(var(--bs-gutter-x) * .5) 0; }
+    .canal-monitor .cm-list { flex: 1; min-height: 0; }
+}
+
+@media (max-width: 575.98px) {
+    .canal-monitor .cm-header .cm-btn { width: 100%; }
+    .canal-monitor .cm-thresholds { grid-template-columns: 1fr; }
+    .canal-monitor .cm-stat { padding: 8px 12px; column-gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .canal-monitor * { transition: none !important; }
+}

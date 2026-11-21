@@ -48,6 +48,12 @@ namespace COMS_MVC.Controllers
         [Authorize(Roles = "Admin,LGU,Barangay,Maintenance")]
         public async Task<IActionResult> Index()
         {
+            // The management list is not for LGU; they get the read-only monitor.
+            if (User.IsInRole("LGU") && !User.IsInRole("Admin"))
+            {
+                return RedirectToAction(nameof(Map));
+            }
+
             var query = _context.Canals
                 .Include(c => c.Sensors)
                 .Include(c => c.Alerts.Where(a => a.Status == "Active" || a.Status == "Acknowledged" || a.Status == "In Progress"))
@@ -327,9 +333,42 @@ namespace COMS_MVC.Controllers
                     query = query.Where(c => c.Barangay == user.Barangay);
                 }
             }
-            var canals = await query.ToListAsync();
+            var items = await query
+                .OrderBy(c => c.CanalName)
+                .Select(c => new CanalMonitorItem
+                {
+                    CanalId = c.CanalId,
+                    CanalName = c.CanalName,
+                    Location = c.Location,
+                    Barangay = c.Barangay,
+                    City = c.City,
+                    Status = c.Status,
+                    Latitude = c.Latitude,
+                    Longitude = c.Longitude,
+                    NormalWaterLevel = c.NormalWaterLevel,
+                    WarningWaterLevel = c.WarningWaterLevel,
+                    CriticalWaterLevel = c.CriticalWaterLevel,
+                    SensorTotal = c.Sensors.Count(),
+                    SensorOnline = c.Sensors.Count(s => s.Status == "Online"),
+                    ActiveAlertCount = c.Alerts.Count(a => a.Status == "Active" || a.Status == "Acknowledged" || a.Status == "In Progress"),
+                    LatestWaterLevel = c.SensorReadings.OrderByDescending(r => r.RecordedAt).Select(r => (double?)r.WaterLevel).FirstOrDefault(),
+                    LatestReadingAt = c.SensorReadings.OrderByDescending(r => r.RecordedAt).Select(r => (DateTime?)r.RecordedAt).FirstOrDefault(),
+                    Sensors = c.Sensors.OrderBy(s => s.SensorCode).Select(s => new CanalMonitorSensor
+                    {
+                        SensorId = s.SensorId,
+                        SensorCode = s.SensorCode,
+                        SensorType = s.SensorType,
+                        Status = s.Status
+                    }).ToList()
+                })
+                .ToListAsync();
 
-            return View(canals);
+            foreach (var item in items)
+            {
+                item.LatestReadingText = item.LatestReadingAt is { } at ? Helpers.PhTime.ToPhString(at) : null;
+            }
+
+            return View(items);
         }
     }
 }

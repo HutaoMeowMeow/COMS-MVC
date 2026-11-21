@@ -93,9 +93,13 @@
                         <i class="bi bi-journal-text me-2"></i>Community Reports
                     </a>
                 </li>
+                // site.js highlights by URL prefix only; mark Details (and Map) server-side.
+                var cmAction = ViewContext.RouteData.Values["action"]?.ToString();
+                var canalMonitorActive = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Canals", StringComparison.OrdinalIgnoreCase)
+                    && (string.Equals(cmAction, "Map", StringComparison.OrdinalIgnoreCase) || string.Equals(cmAction, "Details", StringComparison.OrdinalIgnoreCase));
                 <li class="nav-item">
-                    <a class="nav-link text-white sidebar-nav-item" asp-controller="Canals" asp-action="Index">
-                        <i class="bi bi-water me-2"></i>Canals
+                    <a class="nav-link text-white sidebar-nav-item @(canalMonitorActive ? "active" : null)" aria-current="@(canalMonitorActive ? "page" : null)" asp-controller="Canals" asp-action="Map">
+                        <i class="bi bi-broadcast-pin me-2"></i>Canal Monitor
                     </a>
                 </li>
                 <li class="nav-item">
